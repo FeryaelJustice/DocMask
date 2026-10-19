@@ -52,4 +52,51 @@ object DocumentExporter {
             Result.failure(e)
         }
     }
+
+    fun exportAndShareBitmapsBatch(
+        context: Context,
+        frontBitmap: Bitmap,
+        backBitmap: Bitmap,
+        title: String = "docmask_dni"
+    ): Result<List<Uri>> {
+        return try {
+            val exportDir = File(context.cacheDir, "exported_documents").apply {
+                if (!exists()) mkdirs()
+            }
+
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            val frontFile = File(exportDir, "${title}_anverso_$timestamp.png")
+            val backFile = File(exportDir, "${title}_reverso_$timestamp.png")
+
+            FileOutputStream(frontFile).use { out ->
+                frontBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            FileOutputStream(backFile).use { out ->
+                backBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+
+            val authority = "${context.packageName}.fileprovider"
+            val frontUri = FileProvider.getUriForFile(context, authority, frontFile)
+            val backUri = FileProvider.getUriForFile(context, authority, backFile)
+            val uriList = arrayListOf(frontUri, backUri)
+
+            val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                type = "image/png"
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uriList)
+                putExtra(Intent.EXTRA_SUBJECT, "Documento de identidad protegido con DocMask")
+                putExtra(Intent.EXTRA_TEXT, "Adjunto anverso y reverso protegidos con DocMask (100% Offline).")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            val chooser = Intent.createChooser(shareIntent, "Compartir DNI protegido (Anverso y Reverso)").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            context.startActivity(chooser)
+            Result.success(uriList)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

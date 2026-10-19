@@ -19,6 +19,9 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
+import com.feryaeljustice.docmask.domain.usecase.SaveWatermarkTemplateUseCase
+import com.feryaeljustice.docmask.domain.usecase.DeleteWatermarkTemplateUseCase
+
 val coreModule = module {
     single<BitmapProcessor> { AndroidBitmapProcessor() }
     single { SensitiveFieldDetector() }
@@ -35,10 +38,12 @@ val domainModule = module {
     factory { DetectSensitiveRegionsUseCase(get()) }
     factory { ApplyMaskingUseCase(get()) }
     factory { GetWatermarkTemplatesUseCase(get()) }
+    factory { SaveWatermarkTemplateUseCase(get()) }
+    factory { DeleteWatermarkTemplateUseCase(get()) }
 }
 
 val viewModelModule = module {
-    viewModel { EditorViewModel(get(), get(), get(), get(), get()) }
+    viewModel { EditorViewModel(get(), get(), get(), get(), get(), get(), get()) }
 }
 
 val appModules = listOf(

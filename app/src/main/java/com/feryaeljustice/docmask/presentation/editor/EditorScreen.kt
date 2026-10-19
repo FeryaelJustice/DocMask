@@ -50,9 +50,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -68,6 +73,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Tab
+import com.feryaeljustice.docmask.core.model.DocumentSide
 import com.feryaeljustice.docmask.core.util.DocumentExporter
 import com.feryaeljustice.docmask.presentation.settings.SettingsScreen
 import com.feryaeljustice.docmask.presentation.templates.TemplatesScreen
@@ -100,7 +109,7 @@ fun DocMaskApp(
                     @Suppress("DEPRECATION")
                     MediaStore.Images.Media.getBitmap(context.contentResolver, it)
                 }
-                viewModel.onEvent(EditorUiEvent.ImageSelected(bitmap))
+                viewModel.onEvent(EditorUiEvent.ImageSelected(bitmap, uiState.activeSide))
             } catch (e: Exception) {
                 Toast.makeText(context, "Error al cargar imagen: ${e.message}", Toast.LENGTH_SHORT).show()
             }
@@ -145,63 +154,92 @@ fun DocMaskApp(
                 )
             }
             else -> {
-                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                    val isExpanded = maxWidth >= 600.dp
+                Scaffold(
+                    topBar = {
+                        TopAppBar(
+                            title = {
+                                Text(
+                                    text = "DocMask",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            },
+                            navigationIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Description,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(start = 12.dp)
+                                )
+                            }
+                        )
+                    }
+                ) { innerPadding ->
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding)
+                            .consumeWindowInsets(innerPadding)
+                    ) {
+                        val isExpanded = maxWidth >= 600.dp
 
-                    if (isExpanded) {
-                        // Two-pane layout for tablets and expanded screens
-                        Row(modifier = Modifier.fillMaxSize()) {
-                            Box(
+                        if (isExpanded) {
+                            // Two-pane layout for tablets and expanded screens
+                            Row(
                                 modifier = Modifier
-                                    .weight(1.2f)
-                                    .fillMaxHeight()
+                                    .fillMaxSize()
+                                    .imePadding()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1.2f)
+                                        .fillMaxHeight()
+                                        .padding(16.dp)
+                                ) {
+                                    DocumentViewerPane(
+                                        uiState = uiState,
+                                        onEvent = viewModel::onEvent,
+                                        onPickImage = { imagePickerLauncher.launch("image/*") },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .weight(0.8f)
+                                        .fillMaxHeight()
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                        .padding(16.dp)
+                                ) {
+                                    EditorControlsPane(
+                                        uiState = uiState,
+                                        onEvent = viewModel::onEvent,
+                                        onPickImage = { imagePickerLauncher.launch("image/*") },
+                                        modifier = Modifier.verticalScroll(rememberScrollState())
+                                    )
+                                }
+                            }
+                        } else {
+                            // Single-column layout for phones (single top-level vertical scroll)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .imePadding()
+                                    .verticalScroll(rememberScrollState())
                                     .padding(16.dp)
                             ) {
                                 DocumentViewerPane(
                                     uiState = uiState,
                                     onEvent = viewModel::onEvent,
                                     onPickImage = { imagePickerLauncher.launch("image/*") },
-                                    modifier = Modifier.fillMaxSize()
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(280.dp)
                                 )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .weight(0.8f)
-                                    .fillMaxHeight()
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                                    .padding(16.dp)
-                            ) {
+                                Spacer(modifier = Modifier.height(16.dp))
                                 EditorControlsPane(
                                     uiState = uiState,
                                     onEvent = viewModel::onEvent,
-                                    onPickImage = { imagePickerLauncher.launch("image/*") },
-                                    modifier = Modifier.verticalScroll(rememberScrollState())
+                                    onPickImage = { imagePickerLauncher.launch("image/*") }
                                 )
                             }
-                        }
-                    } else {
-                        // Single-column layout for phones (single top-level vertical scroll)
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .imePadding()
-                                .verticalScroll(rememberScrollState())
-                                .padding(16.dp)
-                        ) {
-                            DocumentViewerPane(
-                                uiState = uiState,
-                                onEvent = viewModel::onEvent,
-                                onPickImage = { imagePickerLauncher.launch("image/*") },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(280.dp)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            EditorControlsPane(
-                                uiState = uiState,
-                                onEvent = viewModel::onEvent,
-                                onPickImage = { imagePickerLauncher.launch("image/*") }
-                            )
                         }
                     }
                 }
@@ -222,66 +260,122 @@ fun DocumentViewerPane(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            val bitmap = uiState.maskedBitmap ?: uiState.originalBitmap
-            if (bitmap != null) {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "Documento protegido",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable { onPickImage() },
-                    contentScale = ContentScale.Fit
-                )
-            } else {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable { onPickImage() }
-                        .padding(24.dp)
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (uiState.isDualSidedMode) {
+                PrimaryTabRow(
+                    selectedTabIndex = if (uiState.activeSide == DocumentSide.FRONT) 0 else 1
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.FolderOpen,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                    Tab(
+                        selected = uiState.activeSide == DocumentSide.FRONT,
+                        onClick = { onEvent(EditorUiEvent.SelectDocumentSide(DocumentSide.FRONT)) },
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Anverso")
+                                if (uiState.hasFront) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Cargado",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Selecciona un documento para proteger",
-                        style = MaterialTheme.typography.titleMedium
+                    Tab(
+                        selected = uiState.activeSide == DocumentSide.BACK,
+                        onClick = { onEvent(EditorUiEvent.SelectDocumentSide(DocumentSide.BACK)) },
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Reverso")
+                                if (uiState.hasBack) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Cargado",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Procesamiento 100% offline y seguro",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedButton(
-                        onClick = onPickImage,
-                        modifier = Modifier.defaultMinSize(minHeight = 48.dp)
-                    ) {
-                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Cargar Documento")
-                    }
                 }
             }
 
-            if (uiState.isLoading) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                val bitmap = uiState.currentMaskedBitmap ?: uiState.currentOriginalBitmap
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = if (uiState.isDualSidedMode) {
+                            "Documento protegido (${uiState.activeSide.displayName})"
+                        } else "Documento protegido",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp))
+                            .clickable { onPickImage() },
+                        contentScale = ContentScale.Fit
+                    )
+                } else {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable { onPickImage() }
+                            .padding(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FolderOpen,
+                            contentDescription = null,
+                            modifier = Modifier.size(56.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = if (uiState.isDualSidedMode) {
+                                "Cargar ${uiState.activeSide.displayName}"
+                            } else "Selecciona un documento para proteger",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (uiState.isDualSidedMode) {
+                                "Pulsa para adjuntar la imagen del ${uiState.activeSide.displayName.lowercase()}"
+                            } else "Procesamiento 100% offline y seguro",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        OutlinedButton(
+                            onClick = onPickImage,
+                            modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                        ) {
+                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                if (uiState.isDualSidedMode) "Cargar ${uiState.activeSide.displayName}"
+                                else "Cargar Documento"
+                            )
+                        }
+                    }
+                }
+
+                if (uiState.isLoading) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
                     }
                 }
             }
@@ -303,6 +397,59 @@ fun EditorControlsPane(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Pro Dual-Sided Mode Card
+        if (uiState.isProUser) {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.WorkspacePremium,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "DNI Doble Cara (Anverso / Reverso)",
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Procesa ambas caras en lote con una sola marca de agua.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = uiState.isDualSidedMode,
+                            onCheckedChange = { onEvent(EditorUiEvent.ToggleDualSidedMode(it)) }
+                        )
+                    }
+                    if (uiState.isDualSidedMode) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Aviso: Diseñado para DNI u otro documento de dos caras. Si adjuntas otro tipo de archivo queda bajo tu responsabilidad.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+        }
+
         // Document actions (Change / Load)
         if (uiState.hasDocument) {
             Row(
@@ -315,14 +462,18 @@ fun EditorControlsPane(
                 ) {
                     Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Cambiar Documento")
+                    Text(
+                        if (uiState.isDualSidedMode) "Cambiar ${uiState.activeSide.displayName}"
+                        else "Cambiar Documento"
+                    )
                 }
             }
         }
 
         // Sensitive data detection status & action
         Text(
-            text = "Detección Local de Datos",
+            text = if (uiState.isDualSidedMode) "Detección Local (${uiState.activeSide.displayName})"
+                   else "Detección Local de Datos",
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary
         )
@@ -333,7 +484,7 @@ fun EditorControlsPane(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${uiState.redactedCount} de ${uiState.detectedRegions.size} campos protegidos",
+                text = "${uiState.redactedCount} de ${uiState.currentDetectedRegions.size} campos protegidos",
                 style = MaterialTheme.typography.bodyMedium
             )
             Button(
@@ -348,13 +499,13 @@ fun EditorControlsPane(
         }
 
         // Region chips
-        if (uiState.detectedRegions.isNotEmpty()) {
+        if (uiState.currentDetectedRegions.isNotEmpty()) {
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                uiState.detectedRegions.forEach { region ->
+                uiState.currentDetectedRegions.forEach { region ->
                     FilterChip(
                         selected = region.isRedacted,
                         onClick = { onEvent(EditorUiEvent.ToggleRegionRedaction(region.id)) },
@@ -407,6 +558,30 @@ fun EditorControlsPane(
             modifier = Modifier.fillMaxWidth()
         )
 
+        // Watermark opacity slider
+        val currentOpacity = uiState.maskingOptions.watermarkConfig.opacity
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Opacidad de la marca",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = "${(currentOpacity * 100).toInt()}%",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Slider(
+            value = currentOpacity,
+            onValueChange = { onEvent(EditorUiEvent.UpdateWatermarkOpacity(it)) },
+            valueRange = 0.1f..0.8f,
+            modifier = Modifier.fillMaxWidth()
+        )
+
         // Template chips
         if (uiState.availableTemplates.isNotEmpty()) {
             Text(
@@ -433,20 +608,41 @@ fun EditorControlsPane(
         // Export button
         Button(
             onClick = {
-                val bitmapToExport = uiState.maskedBitmap ?: uiState.originalBitmap
-                if (bitmapToExport != null) {
-                    val result = DocumentExporter.exportAndShareBitmap(context, bitmapToExport)
-                    if (result.isSuccess) {
-                        Toast.makeText(context, "Documento exportado. Selecciona dónde compartirlo.", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(context, "Error al exportar: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                if (uiState.isDualSidedMode) {
+                    if (!uiState.hasFront) {
+                        Toast.makeText(context, "Falta adjuntar el anverso del documento", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    if (!uiState.hasBack) {
+                        Toast.makeText(context, "Falta adjuntar el reverso del documento", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    val frontExport = uiState.maskedBitmap ?: uiState.originalBitmap
+                    val backExport = uiState.backMaskedBitmap ?: uiState.backOriginalBitmap
+                    if (frontExport != null && backExport != null) {
+                        val result = DocumentExporter.exportAndShareBitmapsBatch(context, frontExport, backExport)
+                        if (result.isSuccess) {
+                            Toast.makeText(context, "Documentos exportados. Selecciona dónde compartirlos.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Error al exportar: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                        }
                     }
                 } else {
-                    Toast.makeText(context, "Primero carga un documento para exportar", Toast.LENGTH_SHORT).show()
+                    val bitmapToExport = uiState.maskedBitmap ?: uiState.originalBitmap
+                    if (bitmapToExport != null) {
+                        val result = DocumentExporter.exportAndShareBitmap(context, bitmapToExport)
+                        if (result.isSuccess) {
+                            Toast.makeText(context, "Documento exportado. Selecciona dónde compartirlo.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Error al exportar: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                        }
+                    } else {
+                        Toast.makeText(context, "Primero carga un documento para exportar", Toast.LENGTH_SHORT).show()
+                    }
                 }
                 onEvent(EditorUiEvent.ExportDocument)
             },
-            enabled = uiState.hasDocument,
+            enabled = if (uiState.isDualSidedMode) (uiState.hasFront || uiState.hasBack) else uiState.hasDocument,
             modifier = Modifier
                 .fillMaxWidth()
                 .defaultMinSize(minHeight = 52.dp)
@@ -454,7 +650,10 @@ fun EditorControlsPane(
         ) {
             Icon(Icons.Default.FileDownload, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Exportar Documento Seguro")
+            Text(
+                if (uiState.isDualSidedMode) "Exportar DNI Seguro (Lote Anverso y Reverso)"
+                else "Exportar Documento Seguro"
+            )
         }
     }
 }

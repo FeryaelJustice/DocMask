@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import app.cash.turbine.test
 import com.feryaeljustice.docmask.core.model.BoundingBox
 import com.feryaeljustice.docmask.core.model.DocMaskResult
+import com.feryaeljustice.docmask.core.model.DocumentSide
 import com.feryaeljustice.docmask.core.model.RedactionArea
 import com.feryaeljustice.docmask.core.model.SensitiveFieldType
 import com.feryaeljustice.docmask.core.model.WatermarkConfig
@@ -13,11 +14,14 @@ import com.feryaeljustice.docmask.domain.repository.BillingRepository
 import com.feryaeljustice.docmask.domain.usecase.ApplyMaskingUseCase
 import com.feryaeljustice.docmask.domain.usecase.DetectSensitiveRegionsUseCase
 import com.feryaeljustice.docmask.domain.usecase.GetWatermarkTemplatesUseCase
+import com.feryaeljustice.docmask.domain.usecase.SaveWatermarkTemplateUseCase
+import com.feryaeljustice.docmask.domain.usecase.DeleteWatermarkTemplateUseCase
 import com.feryaeljustice.docmask.util.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -41,6 +45,8 @@ class EditorViewModelTest {
     private val detectSensitiveRegionsUseCase: DetectSensitiveRegionsUseCase = mockk()
     private val applyMaskingUseCase: ApplyMaskingUseCase = mockk()
     private val getWatermarkTemplatesUseCase: GetWatermarkTemplatesUseCase = mockk()
+    private val saveWatermarkTemplateUseCase: SaveWatermarkTemplateUseCase = mockk()
+    private val deleteWatermarkTemplateUseCase: DeleteWatermarkTemplateUseCase = mockk()
     private val billingRepository: BillingRepository = mockk()
     private val userPreferencesRepository: UserPreferencesRepository = mockk()
     private val testBitmap: Bitmap = mockk()
@@ -50,7 +56,7 @@ class EditorViewModelTest {
         WatermarkTemplate(
             id = "template-1",
             title = "Alquiler vivienda",
-            config = WatermarkConfig(purposeText = "Para alquiler"),
+            config = WatermarkConfig(purposeText = "Para alquiler", opacity = 0.35f),
             isDefault = true
         )
     )
@@ -61,13 +67,18 @@ class EditorViewModelTest {
     fun setUp() {
         every { getWatermarkTemplatesUseCase() } returns flowOf(sampleTemplates)
         every { billingRepository.isProUser } returns flowOf(false)
+        every { billingRepository.setDebugProStatus(any()) } returns Unit
         every { userPreferencesRepository.isBiometricEnabled } returns flowOf(false)
         coEvery { userPreferencesRepository.setBiometricEnabled(any()) } returns Unit
+        coEvery { saveWatermarkTemplateUseCase(any()) } returns Unit
+        coEvery { deleteWatermarkTemplateUseCase(any()) } returns Unit
 
         viewModel = EditorViewModel(
             detectSensitiveRegionsUseCase = detectSensitiveRegionsUseCase,
             applyMaskingUseCase = applyMaskingUseCase,
             getWatermarkTemplatesUseCase = getWatermarkTemplatesUseCase,
+            saveWatermarkTemplateUseCase = saveWatermarkTemplateUseCase,
+            deleteWatermarkTemplateUseCase = deleteWatermarkTemplateUseCase,
             billingRepository = billingRepository,
             userPreferencesRepository = userPreferencesRepository
         )
@@ -172,5 +183,107 @@ class EditorViewModelTest {
 
         // Then
         coVerify(exactly = 1) { userPreferencesRepository.setBiometricEnabled(true) }
+    }
+
+    @Test
+    fun givenOpacityChanged_whenEventSent_thenUpdatesMaskingOptionsOpacity() = runTest {
+        // When
+        viewModel.onEvent(EditorUiEvent.UpdateWatermarkOpacity(0.6f))
+
+        // Then
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertEquals(0.6f, state.maskingOptions.watermarkConfig.opacity, 0.001f)
+        }
+    }
+
+    @Test
+    fun givenSaveTemplateDispatched_whenEventSent_thenInvokesSaveUseCase() = runTest {
+        val newTemplate = WatermarkTemplate(
+            id = "custom-test",
+            title = "Test Template",
+            config = WatermarkConfig(purposeText = "Test Purpose", opacity = 0.4f),
+            isDefault = false
+        )
+
+        // When
+        viewModel.onEvent(EditorUiEvent.SaveTemplate(newTemplate))
+
+        // Then
+        coVerify(exactly = 1) { saveWatermarkTemplateUseCase(newTemplate) }
+    }
+
+    @Test
+    fun givenDeleteTemplateDispatched_whenEventSent_thenInvokesDeleteUseCase() = runTest {
+        // When
+        viewModel.onEvent(EditorUiEvent.DeleteTemplate("custom-123"))
+
+        // Then
+        coVerify(exactly = 1) { deleteWatermarkTemplateUseCase("custom-123") }
+    }
+
+    @Test
+    fun givenToggleDebugProDispatched_whenEventSent_thenUpdatesBillingRepo() = runTest {
+        // When
+        viewModel.onEvent(EditorUiEvent.ToggleDebugPro(true))
+
+        // Then
+        verify(exactly = 1) { billingRepository.setDebugProStatus(true) }
+    }
+
+    @Test
+    fun givenDualSidedModeEnabled_whenBackSelected_thenActiveSideIsBack() = runTest {
+        // When
+        viewModel.onEvent(EditorUiEvent.ToggleDualSidedMode(true))
+        viewModel.onEvent(EditorUiEvent.SelectDocumentSide(DocumentSide.BACK))
+
+        // Then
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertTrue(state.isDualSidedMode)
+            assertEquals(DocumentSide.BACK, state.activeSide)
+        }
+    }
+
+    @Test
+    fun givenImagesLoadedOnBothSides_whenDualModeDisabled_thenPreservesFrontImage() = runTest {
+        coEvery { detectSensitiveRegionsUseCase(testBitmap) } returns DocMaskResult.Success(emptyList())
+        coEvery { applyMaskingUseCase(any(), any(), any()) } returns DocMaskResult.Success(maskedBitmap)
+
+        // Given
+        viewModel.onEvent(EditorUiEvent.ToggleDualSidedMode(true))
+        viewModel.onEvent(EditorUiEvent.ImageSelected(testBitmap, DocumentSide.FRONT))
+        viewModel.onEvent(EditorUiEvent.ImageSelected(testBitmap, DocumentSide.BACK))
+
+        // When
+        viewModel.onEvent(EditorUiEvent.ToggleDualSidedMode(false))
+
+        // Then
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertFalse(state.isDualSidedMode)
+            assertEquals(DocumentSide.FRONT, state.activeSide)
+            assertTrue(state.hasFront)
+            assertEquals(testBitmap, state.originalBitmap)
+        }
+    }
+
+    @Test
+    fun givenMissingBackImage_whenInDualMode_thenCanExportIsFalse() = runTest {
+        coEvery { detectSensitiveRegionsUseCase(testBitmap) } returns DocMaskResult.Success(emptyList())
+        coEvery { applyMaskingUseCase(any(), any(), any()) } returns DocMaskResult.Success(maskedBitmap)
+
+        // Given only front loaded
+        viewModel.onEvent(EditorUiEvent.ToggleDualSidedMode(true))
+        viewModel.onEvent(EditorUiEvent.ImageSelected(testBitmap, DocumentSide.FRONT))
+
+        // Then
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertTrue(state.isDualSidedMode)
+            assertTrue(state.hasFront)
+            assertFalse(state.hasBack)
+            assertFalse(state.canExport)
+        }
     }
 }

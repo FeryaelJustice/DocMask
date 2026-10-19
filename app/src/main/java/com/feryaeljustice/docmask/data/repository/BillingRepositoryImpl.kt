@@ -17,7 +17,11 @@ class BillingRepositoryImpl : BillingRepository {
         // Communicates via local IPC with Google Play Store service
     }
 
-    fun setProStatus(isPro: Boolean) {
+    override fun setDebugProStatus(isPro: Boolean) {
         _isProUser.value = isPro
+    }
+
+    fun setProStatus(isPro: Boolean) {
+        setDebugProStatus(isPro)
     }
 }
