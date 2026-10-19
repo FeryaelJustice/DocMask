@@ -17,13 +17,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import com.feryaeljustice.docmask.data.local.preferences.UserPreferencesRepository
 import kotlinx.coroutines.launch
 
 class EditorViewModel(
     private val detectSensitiveRegionsUseCase: DetectSensitiveRegionsUseCase,
     private val applyMaskingUseCase: ApplyMaskingUseCase,
     private val getWatermarkTemplatesUseCase: GetWatermarkTemplatesUseCase,
-    private val billingRepository: BillingRepository
+    private val billingRepository: BillingRepository,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(EditorUiState())
@@ -32,6 +34,7 @@ class EditorViewModel(
     init {
         observeTemplates()
         observeBillingStatus()
+        observeBiometricPreference()
     }
 
     private fun observeTemplates() {
@@ -57,6 +60,12 @@ class EditorViewModel(
         }.launchIn(viewModelScope)
     }
 
+    private fun observeBiometricPreference() {
+        userPreferencesRepository.isBiometricEnabled.onEach { isEnabled ->
+            _uiState.update { it.copy(isBiometricEnabled = isEnabled) }
+        }.launchIn(viewModelScope)
+    }
+
     fun onEvent(event: EditorUiEvent) {
         when (event) {
             is EditorUiEvent.ImageSelected -> onImageSelected(event.bitmap)
@@ -66,8 +75,15 @@ class EditorViewModel(
             is EditorUiEvent.UpdateWatermarkText -> onUpdateWatermarkText(event.text)
             is EditorUiEvent.SelectTemplate -> onSelectTemplate(event.template)
             is EditorUiEvent.UpdateWatermarkConfig -> onUpdateWatermarkConfig(event.config)
+            is EditorUiEvent.ToggleBiometric -> onToggleBiometric(event.enabled)
             is EditorUiEvent.ExportDocument -> onExportDocument()
             is EditorUiEvent.DismissError -> _uiState.update { it.copy(errorMessage = null) }
+        }
+    }
+
+    private fun onToggleBiometric(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setBiometricEnabled(enabled)
         }
     }
 

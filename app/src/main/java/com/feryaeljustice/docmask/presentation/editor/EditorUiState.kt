@@ -18,6 +18,7 @@ data class EditorUiState(
     val availableTemplates: List<WatermarkTemplate> = emptyList(),
     val selectedTemplateId: String? = null,
     val isProUser: Boolean = false,
+    val isBiometricEnabled: Boolean = false,
     val errorMessage: String? = null,
     val isExportSuccess: Boolean = false
 ) {
@@ -33,6 +34,7 @@ sealed interface EditorUiEvent {
     data class UpdateWatermarkText(val text: String) : EditorUiEvent
     data class SelectTemplate(val template: WatermarkTemplate) : EditorUiEvent
     data class UpdateWatermarkConfig(val config: WatermarkConfig) : EditorUiEvent
+    data class ToggleBiometric(val enabled: Boolean) : EditorUiEvent
     object ExportDocument : EditorUiEvent
     object DismissError : EditorUiEvent
 }

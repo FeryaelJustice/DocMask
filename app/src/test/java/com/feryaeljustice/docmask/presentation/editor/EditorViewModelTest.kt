@@ -7,6 +7,7 @@ import com.feryaeljustice.docmask.core.model.DocMaskResult
 import com.feryaeljustice.docmask.core.model.RedactionArea
 import com.feryaeljustice.docmask.core.model.SensitiveFieldType
 import com.feryaeljustice.docmask.core.model.WatermarkConfig
+import com.feryaeljustice.docmask.data.local.preferences.UserPreferencesRepository
 import com.feryaeljustice.docmask.domain.model.WatermarkTemplate
 import com.feryaeljustice.docmask.domain.repository.BillingRepository
 import com.feryaeljustice.docmask.domain.usecase.ApplyMaskingUseCase
@@ -14,6 +15,7 @@ import com.feryaeljustice.docmask.domain.usecase.DetectSensitiveRegionsUseCase
 import com.feryaeljustice.docmask.domain.usecase.GetWatermarkTemplatesUseCase
 import com.feryaeljustice.docmask.util.MainDispatcherRule
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -40,6 +42,7 @@ class EditorViewModelTest {
     private val applyMaskingUseCase: ApplyMaskingUseCase = mockk()
     private val getWatermarkTemplatesUseCase: GetWatermarkTemplatesUseCase = mockk()
     private val billingRepository: BillingRepository = mockk()
+    private val userPreferencesRepository: UserPreferencesRepository = mockk()
     private val testBitmap: Bitmap = mockk()
     private val maskedBitmap: Bitmap = mockk()
 
@@ -58,12 +61,15 @@ class EditorViewModelTest {
     fun setUp() {
         every { getWatermarkTemplatesUseCase() } returns flowOf(sampleTemplates)
         every { billingRepository.isProUser } returns flowOf(false)
+        every { userPreferencesRepository.isBiometricEnabled } returns flowOf(false)
+        coEvery { userPreferencesRepository.setBiometricEnabled(any()) } returns Unit
 
         viewModel = EditorViewModel(
             detectSensitiveRegionsUseCase = detectSensitiveRegionsUseCase,
             applyMaskingUseCase = applyMaskingUseCase,
             getWatermarkTemplatesUseCase = getWatermarkTemplatesUseCase,
-            billingRepository = billingRepository
+            billingRepository = billingRepository,
+            userPreferencesRepository = userPreferencesRepository
         )
     }
 
@@ -157,5 +163,14 @@ class EditorViewModelTest {
             val state = awaitItem()
             assertTrue(state.isExportSuccess)
         }
+    }
+
+    @Test
+    fun givenBiometricToggled_whenEventSent_thenUpdatesPreferencesRepository() = runTest {
+        // When
+        viewModel.onEvent(EditorUiEvent.ToggleBiometric(true))
+
+        // Then
+        coVerify(exactly = 1) { userPreferencesRepository.setBiometricEnabled(true) }
     }
 }

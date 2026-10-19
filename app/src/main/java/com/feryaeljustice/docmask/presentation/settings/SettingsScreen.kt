@@ -19,16 +19,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -44,9 +46,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.feryaeljustice.docmask.core.util.BiometricHelper
+import com.feryaeljustice.docmask.core.util.CacheManager
+import com.feryaeljustice.docmask.presentation.editor.EditorUiEvent
 import com.feryaeljustice.docmask.presentation.editor.EditorViewModel
-import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +60,8 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    var isBiometricEnabled by remember { mutableStateOf(false) }
+    var showInfoDialog by remember { mutableStateOf(false) }
+    var storageStats by remember { mutableStateOf(CacheManager.getTemporaryStorageStats(context)) }
 
     Scaffold(
         topBar = {
@@ -67,6 +73,14 @@ fun SettingsScreen(
                         contentDescription = null,
                         modifier = Modifier.padding(start = 12.dp)
                     )
+                },
+                actions = {
+                    IconButton(onClick = { showInfoDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Info,
+                            contentDescription = "Información de la aplicación"
+                        )
+                    }
                 }
             )
         }
@@ -182,18 +196,29 @@ fun SettingsScreen(
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Solicitar huella dactilar o desbloqueo facial al abrir DocMask.",
+                            text = "Solicitar huella dactilar, rostro o PIN al abrir DocMask.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Switch(
-                        checked = isBiometricEnabled,
-                        onCheckedChange = {
-                            isBiometricEnabled = it
+                        checked = uiState.isBiometricEnabled,
+                        onCheckedChange = { isEnabled ->
+                            if (isEnabled) {
+                                val canAuth = BiometricHelper.isBiometricAvailable(context)
+                                if (!canAuth) {
+                                    Toast.makeText(
+                                        context,
+                                        "No hay huella, rostro ni PIN configurado en este dispositivo",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    return@Switch
+                                }
+                            }
+                            viewModel.onEvent(EditorUiEvent.ToggleBiometric(isEnabled))
                             Toast.makeText(
                                 context,
-                                if (it) "Bloqueo biométrico activado" else "Bloqueo biométrico desactivado",
+                                if (isEnabled) "Bloqueo biométrico activado" else "Bloqueo biométrico desactivado",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
@@ -231,27 +256,123 @@ fun SettingsScreen(
                 }
             }
 
-            // Cache Cleaner
-            OutlinedButton(
-                onClick = {
-                    try {
-                        val dir = File(context.cacheDir, "exported_documents")
-                        if (dir.exists()) {
-                            dir.deleteRecursively()
-                        }
-                        Toast.makeText(context, "Caché de documentos temporales borrada", Toast.LENGTH_SHORT).show()
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "Error al limpiar temporales", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .defaultMinSize(minHeight = 48.dp)
+            // Temporary Storage & Cache Cleaner Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
             ) {
-                Icon(Icons.Default.CleaningServices, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Limpiar Documentos Temporales")
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CleaningServices,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Almacenamiento Temporal",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Espacio ocupado por exportaciones previas: ${storageStats.first} archivo(s) (${CacheManager.formatBytes(storageStats.second)})",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = {
+                            val (deletedCount, freedBytes) = CacheManager.clearTemporaryStorage(context)
+                            storageStats = CacheManager.getTemporaryStorageStats(context)
+                            val message = if (deletedCount > 0) {
+                                "Se eliminaron $deletedCount archivos (${CacheManager.formatBytes(freedBytes)} liberados)."
+                            } else {
+                                "No hay documentos temporales para eliminar."
+                            }
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 44.dp)
+                    ) {
+                        Icon(Icons.Default.CleaningServices, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Limpiar Documentos Temporales")
+                    }
+                }
             }
         }
+    }
+
+    // Centered Floating Modal Dialog with App Info
+    if (showInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Security,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "DocMask",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Versión 1.0 (Oficial)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Made with ❤️ by Feryael Justice",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "DocMask es una utilidad de privacidad radical diseñada para proteger documentos de identidad españoles y europeos (DNI, Pasaporte, NIE, carnet de conducir) al enviarlos a terceros.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "• Privacidad 100% Offline: La aplicación no solicita ni posee el permiso INTERNET en el sistema operativo. Tus fotos e información confidencial jamás abandonan tu teléfono.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "• IA Local Empaquetada: Detección inteligente en el dispositivo de número de soporte, código CAN, firma y rostro mediante Google ML Kit.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "• Protección Antifraude: Pixelado interactivo con un toque, conversión a escala de grises y superposición de marcas de agua disuasorias con fecha y propósito específico.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showInfoDialog = false }) {
+                    Text("Entendido")
+                }
+            }
+        )
     }
 }

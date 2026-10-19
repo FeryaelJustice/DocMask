@@ -13,6 +13,9 @@ import com.feryaeljustice.docmask.domain.usecase.ApplyMaskingUseCase
 import com.feryaeljustice.docmask.domain.usecase.DetectSensitiveRegionsUseCase
 import com.feryaeljustice.docmask.domain.usecase.GetWatermarkTemplatesUseCase
 import com.feryaeljustice.docmask.presentation.editor.EditorViewModel
+import com.feryaeljustice.docmask.data.local.preferences.UserPreferencesRepository
+import com.feryaeljustice.docmask.data.local.preferences.UserPreferencesRepositoryImpl
+import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
@@ -25,6 +28,7 @@ val dataModule = module {
     single<DocumentProcessorRepository> { DocumentProcessorRepositoryImpl(get(), get()) }
     single<TemplateRepository> { TemplateRepositoryImpl() }
     single<BillingRepository> { BillingRepositoryImpl() }
+    single<UserPreferencesRepository> { UserPreferencesRepositoryImpl(androidContext()) }
 }
 
 val domainModule = module {
@@ -34,7 +38,7 @@ val domainModule = module {
 }
 
 val viewModelModule = module {
-    viewModel { EditorViewModel(get(), get(), get(), get()) }
+    viewModel { EditorViewModel(get(), get(), get(), get(), get()) }
 }
 
 val appModules = listOf(
