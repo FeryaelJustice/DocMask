@@ -5,6 +5,7 @@ import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -67,6 +68,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.feryaeljustice.docmask.core.util.DocumentExporter
+import com.feryaeljustice.docmask.presentation.settings.SettingsScreen
+import com.feryaeljustice.docmask.presentation.templates.TemplatesScreen
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -98,7 +102,7 @@ fun DocMaskApp(
                 }
                 viewModel.onEvent(EditorUiEvent.ImageSelected(bitmap))
             } catch (e: Exception) {
-                // Handled gracefully in ViewModel
+                Toast.makeText(context, "Error al cargar imagen: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -128,63 +132,78 @@ fun DocMaskApp(
             )
         }
     ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val isExpanded = maxWidth >= 600.dp
+        when (currentDestination) {
+            "templates" -> {
+                TemplatesScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { currentDestination = "editor" }
+                )
+            }
+            "settings" -> {
+                SettingsScreen(
+                    viewModel = viewModel
+                )
+            }
+            else -> {
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    val isExpanded = maxWidth >= 600.dp
 
-            if (isExpanded) {
-                // Two-pane layout for tablets and expanded screens
-                Row(modifier = Modifier.fillMaxSize()) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1.2f)
-                            .fillMaxHeight()
-                            .padding(16.dp)
-                    ) {
-                        DocumentViewerPane(
-                            uiState = uiState,
-                            onEvent = viewModel::onEvent,
-                            onPickImage = { imagePickerLauncher.launch("image/*") },
-                            modifier = Modifier.fillMaxSize()
-                        )
+                    if (isExpanded) {
+                        // Two-pane layout for tablets and expanded screens
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1.2f)
+                                    .fillMaxHeight()
+                                    .padding(16.dp)
+                            ) {
+                                DocumentViewerPane(
+                                    uiState = uiState,
+                                    onEvent = viewModel::onEvent,
+                                    onPickImage = { imagePickerLauncher.launch("image/*") },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(0.8f)
+                                    .fillMaxHeight()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                    .padding(16.dp)
+                            ) {
+                                EditorControlsPane(
+                                    uiState = uiState,
+                                    onEvent = viewModel::onEvent,
+                                    onPickImage = { imagePickerLauncher.launch("image/*") },
+                                    modifier = Modifier.verticalScroll(rememberScrollState())
+                                )
+                            }
+                        }
+                    } else {
+                        // Single-column layout for phones (single top-level vertical scroll)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .imePadding()
+                                .verticalScroll(rememberScrollState())
+                                .padding(16.dp)
+                        ) {
+                            DocumentViewerPane(
+                                uiState = uiState,
+                                onEvent = viewModel::onEvent,
+                                onPickImage = { imagePickerLauncher.launch("image/*") },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(280.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            EditorControlsPane(
+                                uiState = uiState,
+                                onEvent = viewModel::onEvent,
+                                onPickImage = { imagePickerLauncher.launch("image/*") }
+                            )
+                        }
                     }
-                    Box(
-                        modifier = Modifier
-                            .weight(0.8f)
-                            .fillMaxHeight()
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                            .padding(16.dp)
-                    ) {
-                        EditorControlsPane(
-                            uiState = uiState,
-                            onEvent = viewModel::onEvent,
-                            onPickImage = { imagePickerLauncher.launch("image/*") },
-                            modifier = Modifier.verticalScroll(rememberScrollState())
-                        )
-                    }
-                }
-            } else {
-                // Single-column layout for phones (single top-level vertical scroll)
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .imePadding()
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp)
-                ) {
-                    DocumentViewerPane(
-                        uiState = uiState,
-                        onEvent = viewModel::onEvent,
-                        onPickImage = { imagePickerLauncher.launch("image/*") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(280.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    EditorControlsPane(
-                        uiState = uiState,
-                        onEvent = viewModel::onEvent,
-                        onPickImage = { imagePickerLauncher.launch("image/*") }
-                    )
                 }
             }
         }
@@ -278,6 +297,8 @@ fun EditorControlsPane(
     onPickImage: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -411,7 +432,20 @@ fun EditorControlsPane(
 
         // Export button
         Button(
-            onClick = { onEvent(EditorUiEvent.ExportDocument) },
+            onClick = {
+                val bitmapToExport = uiState.maskedBitmap ?: uiState.originalBitmap
+                if (bitmapToExport != null) {
+                    val result = DocumentExporter.exportAndShareBitmap(context, bitmapToExport)
+                    if (result.isSuccess) {
+                        Toast.makeText(context, "Documento exportado. Selecciona dónde compartirlo.", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Error al exportar: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    Toast.makeText(context, "Primero carga un documento para exportar", Toast.LENGTH_SHORT).show()
+                }
+                onEvent(EditorUiEvent.ExportDocument)
+            },
             enabled = uiState.hasDocument,
             modifier = Modifier
                 .fillMaxWidth()
