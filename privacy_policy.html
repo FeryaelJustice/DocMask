@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Politica de Privacidad - DocMask</title>
+  <style>
+    :root {
+      --primary: #1976d2;
+      --primary-dark: #0d47a1;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --badge-bg: #dbeafe;
+      --badge-text: #1e40af;
+      --success-bg: #dcfce7;
+      --success-text: #166534;
+      --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --primary: #60a5fa;
+        --primary-dark: #93c5fd;
+        --bg: #0f172a;
+        --surface: #1e293b;
+        --text: #f1f5f9;
+        --text-muted: #94a3b8;
+        --border: #334155;
+        --badge-bg: #1e3a8a;
+        --badge-text: #bfdbfe;
+        --success-bg: #14532d;
+        --success-text: #bbf7d0;
+        --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.65;
+      color: var(--text);
+      background-color: var(--bg);
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      background: var(--surface);
+      padding: 2.5rem;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow: var(--card-shadow);
+    }
+
+    header {
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .header-tag {
+      display: inline-block;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: var(--badge-bg);
+      color: var(--badge-text);
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      margin-bottom: 0.75rem;
+    }
+
+    h1 {
+      font-size: 2.25rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+      line-height: 1.2;
+    }
+
+    .subtitle {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+    }
+
+    .meta-info {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .highlight-card {
+      background: var(--success-bg);
+      color: var(--success-text);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2rem;
+      font-weight: 500;
+    }
+
+    .highlight-card strong {
+      font-weight: 700;
+    }
+
+    section {
+      margin-bottom: 2.25rem;
+    }
+
+    h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 1.25rem;
+      margin-bottom: 0.5rem;
+    }
+
+    p {
+      margin-bottom: 1rem;
+    }
+
+    ul, ol {
+      margin-left: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    li {
+      margin-bottom: 0.4rem;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.9em;
+      background: var(--badge-bg);
+      color: var(--badge-text);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    .table-container {
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.75rem;
+      text-align: left;
+    }
+
+    th {
+      background: var(--badge-bg);
+      color: var(--badge-text);
+      font-weight: 600;
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding-top: 1.5rem;
+      margin-top: 2.5rem;
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="header-tag">Privacidad Radical 100% Offline</span>
+      <h1>Politica de Privacidad de DocMask</h1>
+      <p class="subtitle">Proteccion segura, local e integral de documentos de identidad</p>
+      <div class="meta-info">
+        <span>Ultima actualizacion: 19 de octubre de 2026</span> | 
+        <span>Aplicacion: DocMask (Android)</span>
+      </div>
+    </header>
+
+    <div class="highlight-card">
+      <strong>Garantia Zero-Network:</strong> DocMask esta disenada bajo el principio de Privacidad Radical. 
+      La aplicacion no dispone del permiso de red (<code>android.permission.INTERNET</code>), 
+      lo que significa que tecnicamente es imposible que tus fotos, documentos o datos personales salgan de tu dispositivo.
+    </div>
+
+    <section>
+      <h2>1. Compromiso Fundamental y Mision</h2>
+      <p>
+        DocMask es una herramienta disenada para ayudar a los ciudadanos a proteger copias de sus documentos de identidad 
+        (DNI, Pasaporte, NIE, carnet de conducir) antes de compartirlos con terceros (arrendadores, hoteles, tramites laborales, agencias o administraciones).
+      </p>
+      <p>
+        A diferencia de servicios web y aplicaciones convencionales que suben imagenes confidenciales a servidores en la nube, 
+        DocMask opera de manera <strong>estrictamente local y offline</strong>. Toda la manipulacion, analisis por inteligencia artificial, 
+        pixelado, insercion de marcas de agua y creacion de documentos PDF se ejecuta de principio a fin en el hardware de tu propio telefono o tableta.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Arquitectura de Red Cero (Zero-Network Policy)</h2>
+      <p>
+        Para garantizar una privacidad inviolable verificable por cualquier usuario o auditor de seguridad:
+      </p>
+      <ul>
+        <li><strong>Sin permiso de Internet:</strong> El archivo de configuracion del sistema (<code>AndroidManifest.xml</code>) elimina y bloquea explicitamente los permisos <code>android.permission.INTERNET</code> y <code>android.permission.ACCESS_NETWORK_STATE</code>. El sistema operativo Android rechaza cualquier intento de comunicacion de red.</li>
+        <li><strong>Sin servidores propios ni de terceros:</strong> No existen servidores de DocMask ni bases de datos remotas.</li>
+        <li><strong>Sin telemetria ni analiticas:</strong> No incluimos Google Analytics, Firebase, Crashlytics ni ningun sistema de seguimiento de comportamiento o uso.</li>
+        <li><strong>Sin publicidad:</strong> La aplicacion no incluye SDKs de anuncios ni redes de rastreo publicitario.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. Tratamiento de Documentos e Inteligencia Artificial Local</h2>
+      <p>
+        Todas las caracteristicas de DocMask funcionan exclusivamente en memoria local:
+      </p>
+      <ul>
+        <li><strong>Lectura y edicion de fotos:</strong> Las imagenes seleccionadas de tu galeria o capturadas con la camara se leen temporalmente en la memoria de trabajo de la aplicacion y nunca se transmiten fuera.</li>
+        <li><strong>Deteccion inteligente de campos (Google ML Kit Bundled):</strong> Los modelos de reconocimiento de texto y deteccion facial estan empaquetados dentro de la propia aplicacion. No requieren conexion externa ni transmiten fotogramas a los servidores de Google. Detectan de forma autonoma elementos como numero de soporte, codigo CAN, firma, rostro o fecha de nacimiento.</li>
+        <li><strong>Pixelado y censura:</strong> El oscurecimiento o pixelado de informacion sensible se aplica directamente sobre los mapas de bits en el motor grafico Canvas local.</li>
+        <li><strong>Marcas de agua y escala de grises:</strong> La superposicion de textos cruzados y la transformacion a blanco y negro son calculadas matematicamente en el procesador del dispositivo.</li>
+        <li><strong>Union a PDF seguro y exportacion:</strong> La generacion de documentos PDF de doble cara (anverso y reverso) o imagenes resultantes se almacena en la memoria temporal de la app y solo se comparte si el usuario decide pulsar deliberadamente el boton de compartir del sistema.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>4. Permisos del Sistema Operativo y su Uso</h2>
+      <p>
+        DocMask solo solicita los permisos tecnicamente indispensables para su funcionamiento directo:
+      </p>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Permiso / Componente</th>
+              <th>Finalidad Exclusiva</th>
+              <th>Almacenamiento / Transmision</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Acceso a Archivos / Selector de Fotos</td>
+              <td>Permitir al usuario escoger la foto del documento que desea editar o guardar el archivo exportado.</td>
+              <td>Local. Solo se accede al archivo seleccionado expresamente.</td>
+            </tr>
+            <tr>
+              <td>Camara (opcional)</td>
+              <td>Tomar una fotografia instantanea de un documento para su edicion.</td>
+              <td>Local. No se guarda ninguna toma sin el consentimiento del usuario.</td>
+            </tr>
+            <tr>
+              <td>Biometria (<code>BiometricPrompt</code>)</td>
+              <td>Bloqueo y desbloqueo local opcional de la aplicacion y plantillas.</td>
+              <td>Gestionado exclusivamente por el hardware seguro del sistema (Android Keystore). DocMask no tiene acceso a huellas dactilares ni a datos biometricos.</td>
+            </tr>
+            <tr>
+              <td>FileProvider</td>
+              <td>Facilitar el intercambio del documento procesado con otras aplicaciones elegidas por el usuario.</td>
+              <td>Rutas privadas internas temporales con permisos de lectura restringidos.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>5. Persistencia y Almacenamiento Local</h2>
+      <p>
+        DocMask prioriza la minima persistencia de datos:
+      </p>
+      <ul>
+        <li><strong>Plantillas de usuario:</strong> Si guardas textos predefinidos para marcas de agua (por ejemplo, "Copia para alquiler de vivienda"), estos se conservan en la base de datos local Room y DataStore en el almacenamiento privado de la app.</li>
+        <li><strong>Copias de seguridad deshabilitadas:</strong> La propiedad <code>android:allowBackup="false"</code> esta activada para evitar que copias de seguridad automaticas en la nube de Android extraigan informacion sensible o plantillas privadas.</li>
+        <li><strong>Control absoluto:</strong> Desinstalar la aplicacion o limpiar sus datos desde los Ajustes de Android elimina de inmediato y de forma irreversible cualquier configuracion o plantilla local.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>6. Facturacion y Version Pro (Google Play Billing)</h2>
+      <p>
+        DocMask ofrece una modalidad Pro mediante pago unico gestionado exclusivamente por los servicios de <strong>Google Play Billing</strong> a traves de comunicacion entre procesos (IPC) del sistema Android:
+      </p>
+      <ul>
+        <li>DocMask no recopila, procesa ni almacena datos de tarjetas de credito, cuentas bancarias ni informacion personal de facturacion.</li>
+        <li>Todo el proceso de pago y gestion de recibos es efectuado por Google Play conforme a sus propios terminos de servicio y politicas de privacidad.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>7. Cumplimiento con RGPD / GDPR y Derechos del Usuario</h2>
+      <p>
+        En virtud del Reglamento General de Proteccion de Datos (RGPD) de la Union Europea y la Ley Organica de Proteccion de Datos y Garantia de los Derechos Digitales (LOPDGDD):
+      </p>
+      <ul>
+        <li>Al no existir identificadores de usuario, cuentas registradas, direccion de correo, telemetria ni almacenamiento en la nube, el desarrollador no almacena ningun dato de caracter personal que permita identificarte.</li>
+        <li>El usuario retiene en todo momento el control directo y total sobre sus archivos y configuraciones.</li>
+        <li>Para ejercer los derechos de supresion u oposicion, basta con borrar los datos locales de la app o desinstalarla del terminal.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>8. Menores de Edad</h2>
+      <p>
+        DocMask no recopila informacion de ninguna persona, incluidos menores de edad. Su proposito es servir como herramienta de utilidad general para la salvaguarda de documentos.
+      </p>
+    </section>
+
+    <section>
+      <h2>9. Modificaciones a esta Politica</h2>
+      <p>
+        En caso de realizar modificaciones a esta politica de privacidad, el texto actualizado se publicara en este mismo documento con la fecha de revision correspondiente. La garantia de funcionamiento offline y cero conexion de red se mantendra como principio rector irrenunciable.
+      </p>
+    </section>
+
+    <section>
+      <h2>10. Contacto</h2>
+      <p>
+        Para cualquier duda, sugerencia o consulta relativa a esta politica de privacidad o a la seguridad de la aplicacion, puedes contactar a traves del repositorio oficial del proyecto o via correo electronico del desarrollador:
+      </p>
+      <p>
+        <strong>Proyecto:</strong> DocMask para Android<br>
+        <strong>Desarrollador:</strong> Equipo DocMask / Feryael Justice<br>
+        <strong>Soporte:</strong> A traves del canal oficial de incidencias en el repositorio del proyecto.
+      </p>
+    </section>
+
+    <footer>
+      <p>&copy; 2026 DocMask. Todos los derechos reservados. Seguridad y privacidad radical 100% offline.</p>
+    </footer>
+  </div>
+</body>
+</html>
