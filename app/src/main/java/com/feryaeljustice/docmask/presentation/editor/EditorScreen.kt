@@ -1,11 +1,14 @@
 package com.feryaeljustice.docmask.presentation.editor
 
 import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +18,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,9 +31,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FolderOpen
@@ -44,15 +46,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -65,8 +64,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 
@@ -82,6 +81,27 @@ fun DocMaskApp(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var currentDestination by remember { mutableStateOf("editor") }
+    val context = LocalContext.current
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                val bitmap: Bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, it)) { decoder, _, _ ->
+                        decoder.isMutableRequired = true
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                }
+                viewModel.onEvent(EditorUiEvent.ImageSelected(bitmap))
+            } catch (e: Exception) {
+                // Handled gracefully in ViewModel
+            }
+        }
+    }
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
@@ -120,7 +140,12 @@ fun DocMaskApp(
                             .fillMaxHeight()
                             .padding(16.dp)
                     ) {
-                        DocumentViewerPane(uiState = uiState, onEvent = viewModel::onEvent)
+                        DocumentViewerPane(
+                            uiState = uiState,
+                            onEvent = viewModel::onEvent,
+                            onPickImage = { imagePickerLauncher.launch("image/*") },
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                     Box(
                         modifier = Modifier
@@ -129,11 +154,16 @@ fun DocMaskApp(
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                             .padding(16.dp)
                     ) {
-                        EditorControlsPane(uiState = uiState, onEvent = viewModel::onEvent)
+                        EditorControlsPane(
+                            uiState = uiState,
+                            onEvent = viewModel::onEvent,
+                            onPickImage = { imagePickerLauncher.launch("image/*") },
+                            modifier = Modifier.verticalScroll(rememberScrollState())
+                        )
                     }
                 }
             } else {
-                // Single-column layout for phones
+                // Single-column layout for phones (single top-level vertical scroll)
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -144,12 +174,17 @@ fun DocMaskApp(
                     DocumentViewerPane(
                         uiState = uiState,
                         onEvent = viewModel::onEvent,
+                        onPickImage = { imagePickerLauncher.launch("image/*") },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .aspectRatio(1.4f)
+                            .height(280.dp)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    EditorControlsPane(uiState = uiState, onEvent = viewModel::onEvent)
+                    EditorControlsPane(
+                        uiState = uiState,
+                        onEvent = viewModel::onEvent,
+                        onPickImage = { imagePickerLauncher.launch("image/*") }
+                    )
                 }
             }
         }
@@ -160,10 +195,11 @@ fun DocMaskApp(
 fun DocumentViewerPane(
     uiState: EditorUiState,
     onEvent: (EditorUiEvent) -> Unit,
+    onPickImage: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier,
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
@@ -178,14 +214,18 @@ fun DocumentViewerPane(
                     contentDescription = "Documento protegido",
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(16.dp)),
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { onPickImage() },
                     contentScale = ContentScale.Fit
                 )
             } else {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(24.dp)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable { onPickImage() }
+                        .padding(24.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.FolderOpen,
@@ -204,6 +244,15 @@ fun DocumentViewerPane(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedButton(
+                        onClick = onPickImage,
+                        modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                    ) {
+                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Cargar Documento")
+                    }
                 }
             }
 
@@ -225,14 +274,31 @@ fun DocumentViewerPane(
 @Composable
 fun EditorControlsPane(
     uiState: EditorUiState,
-    onEvent: (EditorUiEvent) -> Unit
+    onEvent: (EditorUiEvent) -> Unit,
+    onPickImage: () -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState()),
+        modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Document actions (Change / Load)
+        if (uiState.hasDocument) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                OutlinedButton(
+                    onClick = onPickImage,
+                    modifier = Modifier.defaultMinSize(minHeight = 44.dp)
+                ) {
+                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Cambiar Documento")
+                }
+            }
+        }
+
         // Sensitive data detection status & action
         Text(
             text = "Detección Local de Datos",
@@ -287,7 +353,7 @@ fun EditorControlsPane(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Conversión a Escala de Grises",
                     style = MaterialTheme.typography.bodyMedium
