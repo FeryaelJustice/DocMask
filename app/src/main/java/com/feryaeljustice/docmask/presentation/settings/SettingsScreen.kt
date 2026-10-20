@@ -132,18 +132,24 @@ fun SettingsScreen(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissionsMap ->
         viewModel.onEvent(EditorUiEvent.RefreshPermissions(context))
-        val granted = permissionsMap.values.any { it }
-        if (granted) {
-            Toast.makeText(context, "Permiso multimedia concedido.", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(context, "Permiso multimedia no concedido.", Toast.LENGTH_SHORT).show()
+        val status = PermissionHelper.checkMediaPermissionStatus(context)
+        when (status) {
+            AppPermissionStatus.GRANTED -> {
+                Toast.makeText(context, "Acceso total a la galería concedido.", Toast.LENGTH_SHORT).show()
+            }
+            AppPermissionStatus.PARTIAL -> {
+                Toast.makeText(context, "Acceso a fotos seleccionadas concedido.", Toast.LENGTH_SHORT).show()
+            }
+            else -> {
+                Toast.makeText(context, "Permiso de fotos no concedido.", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     val onPermissionItemClick: (PermissionItemState) -> Unit = { item ->
         if (item.isSafAccess) {
             selectedPermissionForRationale = item
-        } else if (item.status == AppPermissionStatus.GRANTED) {
+        } else if (item.status == AppPermissionStatus.GRANTED || item.status == AppPermissionStatus.PARTIAL) {
             context.startActivity(PermissionHelper.createAppSettingsIntent(context))
         } else {
             selectedPermissionForRationale = item
@@ -707,8 +713,10 @@ fun SettingsScreen(
                         Text(
                             text = if (perm.isSafAccess) {
                                 "Estado: Acceso Seguro nativo garantizado mediante el Selector del Sistema (SAF). No requiere permisos intrusivos."
-                            } else if (isGranted) {
-                                "Estado actual: Concedido en Android. Toca abajo para abrir los Ajustes del sistema si deseas revocarlo o inspeccionarlo."
+                            } else if (perm.status == AppPermissionStatus.GRANTED) {
+                                "Estado actual: Concedido (acceso completo). Toca abajo para abrir los Ajustes del sistema si deseas revocarlo o inspeccionarlo."
+                            } else if (perm.status == AppPermissionStatus.PARTIAL) {
+                                "Estado actual: Concedido parcialmente (acceso a fotos seleccionadas). Toca abajo para conceder acceso completo en Ajustes si lo deseas."
                             } else {
                                 "Estado actual: No concedido. Puedes solicitarlo de inmediato o abrir la configuración de la app."
                             },
@@ -723,7 +731,7 @@ fun SettingsScreen(
                     Button(onClick = { selectedPermissionForRationale = null }) {
                         Text("Entendido")
                     }
-                } else if (!isGranted) {
+                } else if (!isGranted && perm.status != AppPermissionStatus.PARTIAL) {
                     Button(
                         onClick = {
                             val target = perm
@@ -731,8 +739,9 @@ fun SettingsScreen(
                             if (target.type == AppPermissionType.CAMERA) {
                                 cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
                             } else if (target.type == AppPermissionType.GALLERY_MEDIA) {
-                                val perms = PermissionHelper.getRequiredPermissions(AppPermissionType.GALLERY_MEDIA)
-                                mediaPermissionLauncher.launch(perms.toTypedArray())
+                                mediaPermissionLauncher.launch(
+                                    PermissionHelper.getRequiredMediaPermissions().toTypedArray()
+                                )
                             }
                         }
                     ) {
@@ -750,7 +759,7 @@ fun SettingsScreen(
                 }
             },
             dismissButton = {
-                if (!perm.isSafAccess && !isGranted) {
+                if (!perm.isSafAccess && !isGranted && perm.status != AppPermissionStatus.PARTIAL) {
                     OutlinedButton(
                         onClick = {
                             selectedPermissionForRationale = null
@@ -759,7 +768,7 @@ fun SettingsScreen(
                     ) {
                         Text("Ajustes del Sistema")
                     }
-                } else if (!perm.isSafAccess && isGranted) {
+                } else if (!perm.isSafAccess && (isGranted || perm.status == AppPermissionStatus.PARTIAL)) {
                     OutlinedButton(onClick = { selectedPermissionForRationale = null }) {
                         Text("Cerrar")
                     }
@@ -774,7 +783,7 @@ private fun PermissionRowItem(
     item: PermissionItemState,
     onClick: () -> Unit
 ) {
-    val isGranted = item.status == AppPermissionStatus.GRANTED
+    val isGranted = item.status == AppPermissionStatus.GRANTED || item.status == AppPermissionStatus.PARTIAL
     val icon = when (item.type) {
         AppPermissionType.CAMERA -> Icons.Default.CameraAlt
         AppPermissionType.GALLERY_MEDIA -> Icons.Default.PhotoLibrary
@@ -819,13 +828,26 @@ private fun PermissionRowItem(
                     )
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = if (isGranted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
+                        color = when (item.status) {
+                            AppPermissionStatus.GRANTED -> MaterialTheme.colorScheme.primaryContainer
+                            AppPermissionStatus.PARTIAL -> MaterialTheme.colorScheme.tertiaryContainer
+                            else -> MaterialTheme.colorScheme.errorContainer
+                        }
                     ) {
                         Text(
-                            text = if (item.isSafAccess) "Nativo (SAF)" else if (isGranted) "Concedido" else "No concedido",
+                            text = when {
+                                item.isSafAccess -> "Nativo (SAF)"
+                                item.status == AppPermissionStatus.GRANTED -> "Concedido"
+                                item.status == AppPermissionStatus.PARTIAL -> "Parcial (Seleccionadas)"
+                                else -> "No concedido"
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (isGranted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer,
+                            color = when (item.status) {
+                                AppPermissionStatus.GRANTED -> MaterialTheme.colorScheme.onPrimaryContainer
+                                AppPermissionStatus.PARTIAL -> MaterialTheme.colorScheme.onTertiaryContainer
+                                else -> MaterialTheme.colorScheme.onErrorContainer
+                            },
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }

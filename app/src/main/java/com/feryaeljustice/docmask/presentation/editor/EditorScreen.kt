@@ -12,7 +12,10 @@ import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import com.feryaeljustice.docmask.core.model.AppPermissionStatus
+import com.feryaeljustice.docmask.core.util.PermissionHelper
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -60,8 +63,10 @@ import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -157,8 +162,62 @@ fun DocMaskApp(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
+    var showCameraRationaleDialog by remember { mutableStateOf(false) }
+    var showCameraPermanentDenialDialog by remember { mutableStateOf(false) }
+    var showMediaRationaleDialog by remember { mutableStateOf(false) }
+    var showMediaPermanentDenialDialog by remember { mutableStateOf(false) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success) {
+            tempCameraUri?.let { uri ->
+                viewModel.onEvent(EditorUiEvent.SetLoading(true, "Procesando foto de cámara..."))
+                coroutineScope.launch {
+                    try {
+                        val bitmap: Bitmap = withContext(Dispatchers.IO) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
+                                    decoder.isMutableRequired = true
+                                }
+                            } else {
+                                @Suppress("DEPRECATION")
+                                MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                            }
+                        }
+                        viewModel.onEvent(EditorUiEvent.ImageSelected(bitmap, uiState.activeSide))
+                    } catch (e: Exception) {
+                        viewModel.onEvent(EditorUiEvent.ShowError("Error al procesar foto de cámara: ${e.message}"))
+                    }
+                }
+            }
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        viewModel.onEvent(EditorUiEvent.RefreshPermissions(context))
+        if (isGranted) {
+            try {
+                val uri = CameraCaptureHelper.createCameraTempUri(context)
+                tempCameraUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "No se pudo iniciar la cámara: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            val shouldShowRationale = PermissionHelper.shouldShowCameraRationale(context)
+            if (!shouldShowRationale) {
+                showCameraPermanentDenialDialog = true
+            } else {
+                Toast.makeText(context, "Permiso de cámara no concedido.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let {
             viewModel.onEvent(EditorUiEvent.SetLoading(true, "Cargando imagen..."))
@@ -182,30 +241,52 @@ fun DocMaskApp(
         }
     }
 
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success: Boolean ->
-        if (success) {
-            tempCameraUri?.let { uri ->
-                viewModel.onEvent(EditorUiEvent.SetLoading(true, "Procesando foto de cámara..."))
-                coroutineScope.launch {
-                    try {
-                        val bitmap: Bitmap = withContext(Dispatchers.IO) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
-                                decoder.isMutableRequired = true
-                            }
-                            } else {
-                                @Suppress("DEPRECATION")
-                                MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
-                            }
-                        }
-                        viewModel.onEvent(EditorUiEvent.ImageSelected(bitmap, uiState.activeSide))
-                    } catch (e: Exception) {
-                        viewModel.onEvent(EditorUiEvent.ShowError("Error al procesar foto de cámara: ${e.message}"))
-                    }
-                }
+    val mediaPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        viewModel.onEvent(EditorUiEvent.RefreshPermissions(context))
+        val status = PermissionHelper.checkMediaPermissionStatus(context)
+        if (status == AppPermissionStatus.GRANTED || status == AppPermissionStatus.PARTIAL) {
+            imagePickerLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+        } else {
+            val shouldShowRationale = PermissionHelper.shouldShowMediaRationale(context)
+            if (!shouldShowRationale) {
+                showMediaPermanentDenialDialog = true
+            } else {
+                Toast.makeText(context, "Permiso de galería no concedido.", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    val requestCameraAction: () -> Unit = {
+        if (PermissionHelper.isCameraPermissionGranted(context)) {
+            try {
+                val uri = CameraCaptureHelper.createCameraTempUri(context)
+                tempCameraUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "No se pudo iniciar la cámara: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else if (PermissionHelper.shouldShowCameraRationale(context)) {
+            showCameraRationaleDialog = true
+        } else {
+            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+        }
+    }
+
+    val requestMediaAction: () -> Unit = {
+        if (PermissionHelper.isMediaPermissionGranted(context)) {
+            imagePickerLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+        } else if (PermissionHelper.shouldShowMediaRationale(context)) {
+            showMediaRationaleDialog = true
+        } else {
+            mediaPermissionLauncher.launch(
+                PermissionHelper.getRequiredMediaPermissions().toTypedArray()
+            )
         }
     }
 
@@ -261,13 +342,7 @@ fun DocMaskApp(
                 Button(
                     onClick = {
                         showPhotoSourceSheet = false
-                        try {
-                            val uri = CameraCaptureHelper.createCameraTempUri(context)
-                            tempCameraUri = uri
-                            cameraLauncher.launch(uri)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "No se pudo iniciar la cámara: ${e.message}", Toast.LENGTH_SHORT).show()
-                        }
+                        requestCameraAction()
                     },
                     modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp)
                 ) {
@@ -278,7 +353,7 @@ fun DocMaskApp(
                 OutlinedButton(
                     onClick = {
                         showPhotoSourceSheet = false
-                        imagePickerLauncher.launch("image/*")
+                        requestMediaAction()
                     },
                     modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp)
                 ) {
@@ -289,6 +364,140 @@ fun DocMaskApp(
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
+    }
+
+    if (showMediaRationaleDialog) {
+        AlertDialog(
+            onDismissRequest = { showMediaRationaleDialog = false },
+            icon = { Icon(Icons.Default.AddPhotoAlternate, contentDescription = null) },
+            title = {
+                Text(
+                    text = "Acceso a Fotos y Galería",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "DocMask necesita acceder a tus imágenes para cargar el documento a anonimizar. Puedes conceder acceso a ciertas fotos seleccionadas o a toda tu galería. El procesamiento es 100% local."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showMediaRationaleDialog = false
+                        mediaPermissionLauncher.launch(
+                            PermissionHelper.getRequiredMediaPermissions().toTypedArray()
+                        )
+                    }
+                ) {
+                    Text("Conceder Permiso")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showMediaRationaleDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (showMediaPermanentDenialDialog) {
+        AlertDialog(
+            onDismissRequest = { showMediaPermanentDenialDialog = false },
+            icon = { Icon(Icons.Default.Warning, contentDescription = null) },
+            title = {
+                Text(
+                    text = "Permiso de Fotos Bloqueado",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "El acceso a la galería está bloqueado en Android. Para seleccionar documentos desde tus fotos, concede el permiso en Ajustes de la aplicación."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showMediaPermanentDenialDialog = false
+                        context.startActivity(PermissionHelper.createAppSettingsIntent(context))
+                    }
+                ) {
+                    Text("Abrir Ajustes")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showMediaPermanentDenialDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (showCameraRationaleDialog) {
+        AlertDialog(
+            onDismissRequest = { showCameraRationaleDialog = false },
+            icon = { Icon(Icons.Default.CameraAlt, contentDescription = null) },
+            title = {
+                Text(
+                    text = "Permiso de Cámara Requerido",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "DocMask necesita acceder a la cámara únicamente para fotografiar tu documento de identidad y anonimizarlo en tu dispositivo. La imagen no se sube a internet ni se comparte con nadie."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showCameraRationaleDialog = false
+                        cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                    }
+                ) {
+                    Text("Conceder Permiso")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showCameraRationaleDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (showCameraPermanentDenialDialog) {
+        AlertDialog(
+            onDismissRequest = { showCameraPermanentDenialDialog = false },
+            icon = { Icon(Icons.Default.Warning, contentDescription = null) },
+            title = {
+                Text(
+                    text = "Permiso Bloqueado",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "El permiso de cámara está deshabilitado en Android. Para tomar fotos directamente desde la app, habilítalo en la sección de Permisos de la configuración del sistema."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showCameraPermanentDenialDialog = false
+                        context.startActivity(PermissionHelper.createAppSettingsIntent(context))
+                    }
+                ) {
+                    Text("Abrir Ajustes")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showCameraPermanentDenialDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 
     NavigationSuiteScaffold(
@@ -842,7 +1051,7 @@ fun EditorControlsPane(
                             .clip(RoundedCornerShape(8.dp))
                             .combinedClickable(
                                 onClick = {
-                                    Toast.makeText(context, "Mantén pulsado para ampliar la foto original", Toast.LENGTH_SHORT).show()
+                                    showFullScreenPreview = true
                                 },
                                 onLongClick = {
                                     showFullScreenPreview = true
@@ -853,7 +1062,7 @@ fun EditorControlsPane(
                     ) {
                         Image(
                             bitmap = originalThumb.asImageBitmap(),
-                            contentDescription = "Miniatura original (mantener para pantalla completa)",
+                            contentDescription = "Miniatura original",
                             modifier = Modifier
                                 .size(52.dp)
                                 .clip(RoundedCornerShape(8.dp))
@@ -868,7 +1077,7 @@ fun EditorControlsPane(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Mantén pulsado para ampliar",
+                                text = "Toca para ampliar",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1307,87 +1516,114 @@ fun EditorControlsPane(
                     return@Button
                 }
 
-                if (uiState.isPdfMode) {
-                    val pages = uiState.pdfMaskedPagesBitmaps.ifEmpty { uiState.pdfPagesBitmaps }
-                    if (pages.isNotEmpty()) {
-                        val result = DocumentExporter.savePdfToStorage(
-                            context = context,
-                            bitmaps = pages,
-                            title = uiState.pdfDocumentName?.removeSuffix(".pdf") ?: "docmask_documento",
-                            customStorageUri = uiState.customStorageUri
-                        )
-                        if (result.isSuccess) {
-                            val uri = result.getOrNull()
-                            if (uri != null) {
-                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "application/pdf"
-                                    putExtra(Intent.EXTRA_STREAM, uri)
-                                    putExtra(Intent.EXTRA_SUBJECT, "Documento PDF protegido con DocMask")
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                coroutineScope.launch {
+                    onEvent(EditorUiEvent.SetLoading(true, "Exportando y preparando documento seguro..."))
+                    try {
+                        if (uiState.isPdfMode) {
+                            val pages = uiState.pdfMaskedPagesBitmaps.ifEmpty { uiState.pdfPagesBitmaps }
+                            if (pages.isNotEmpty()) {
+                                val result = withContext(Dispatchers.IO) {
+                                    DocumentExporter.savePdfToStorage(
+                                        context = context,
+                                        bitmaps = pages,
+                                        title = uiState.pdfDocumentName?.removeSuffix(".pdf") ?: "docmask_documento",
+                                        customStorageUri = uiState.customStorageUri
+                                    )
                                 }
-                                context.startActivity(Intent.createChooser(shareIntent, "Compartir PDF protegido").apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                })
-                            }
-                            onEvent(EditorUiEvent.ExportDocument)
-                        } else {
-                            Toast.makeText(context, "Error al procesar PDF: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
-                        }
-                    }
-                } else if (uiState.isDualSidedMode) {
-                    if (!uiState.hasFront) {
-                        Toast.makeText(context, "Falta adjuntar el anverso del documento", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-                    if (!uiState.hasBack) {
-                        Toast.makeText(context, "Falta adjuntar el reverso del documento", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-                    val frontExport = uiState.maskedBitmap ?: uiState.originalBitmap
-                    val backExport = uiState.backMaskedBitmap ?: uiState.backOriginalBitmap
-                    if (frontExport != null && backExport != null) {
-                        if (uiState.generatePdfForDni) {
-                            val pdfResult = DocumentExporter.exportAndSharePdfBatch(
-                                context = context,
-                                frontBitmap = frontExport,
-                                backBitmap = backExport,
-                                customStorageUri = uiState.customStorageUri
-                            )
-                            if (pdfResult.isSuccess) {
-                                onEvent(EditorUiEvent.ExportDocument)
+                                onEvent(EditorUiEvent.SetLoading(false))
+                                if (result.isSuccess) {
+                                    val uri = result.getOrNull()
+                                    if (uri != null) {
+                                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "application/pdf"
+                                            putExtra(Intent.EXTRA_STREAM, uri)
+                                            putExtra(Intent.EXTRA_SUBJECT, "Documento PDF protegido con DocMask")
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(Intent.createChooser(shareIntent, "Compartir PDF protegido").apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        })
+                                    }
+                                    onEvent(EditorUiEvent.ExportDocument)
+                                } else {
+                                    Toast.makeText(context, "Error al procesar PDF: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                }
                             } else {
-                                Toast.makeText(context, "Error al exportar PDF: ${pdfResult.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                onEvent(EditorUiEvent.SetLoading(false))
                             }
-                        } else {
-                            val result = DocumentExporter.exportAndShareBitmapsBatch(
-                                context = context,
-                                frontBitmap = frontExport,
-                                backBitmap = backExport,
-                                customStorageUri = uiState.customStorageUri
-                            )
-                            if (result.isSuccess) {
-                                onEvent(EditorUiEvent.ExportDocument)
+                        } else if (uiState.isDualSidedMode) {
+                            if (!uiState.hasFront) {
+                                onEvent(EditorUiEvent.SetLoading(false))
+                                Toast.makeText(context, "Falta adjuntar el anverso del documento", Toast.LENGTH_SHORT).show()
+                                return@launch
+                            }
+                            if (!uiState.hasBack) {
+                                onEvent(EditorUiEvent.SetLoading(false))
+                                Toast.makeText(context, "Falta adjuntar el reverso del documento", Toast.LENGTH_SHORT).show()
+                                return@launch
+                            }
+                            val frontExport = uiState.maskedBitmap ?: uiState.originalBitmap
+                            val backExport = uiState.backMaskedBitmap ?: uiState.backOriginalBitmap
+                            if (frontExport != null && backExport != null) {
+                                if (uiState.generatePdfForDni) {
+                                    val pdfResult = withContext(Dispatchers.IO) {
+                                        DocumentExporter.exportAndSharePdfBatch(
+                                            context = context,
+                                            frontBitmap = frontExport,
+                                            backBitmap = backExport,
+                                            customStorageUri = uiState.customStorageUri
+                                        )
+                                    }
+                                    onEvent(EditorUiEvent.SetLoading(false))
+                                    if (pdfResult.isSuccess) {
+                                        onEvent(EditorUiEvent.ExportDocument)
+                                    } else {
+                                        Toast.makeText(context, "Error al exportar PDF: ${pdfResult.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                } else {
+                                    val result = withContext(Dispatchers.IO) {
+                                        DocumentExporter.exportAndShareBitmapsBatch(
+                                            context = context,
+                                            frontBitmap = frontExport,
+                                            backBitmap = backExport,
+                                            customStorageUri = uiState.customStorageUri
+                                        )
+                                    }
+                                    onEvent(EditorUiEvent.SetLoading(false))
+                                    if (result.isSuccess) {
+                                        onEvent(EditorUiEvent.ExportDocument)
+                                    } else {
+                                        Toast.makeText(context, "Error al exportar: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
                             } else {
-                                Toast.makeText(context, "Error al exportar: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                onEvent(EditorUiEvent.SetLoading(false))
+                            }
+                        } else {
+                            val bitmapToExport = uiState.maskedBitmap ?: uiState.originalBitmap
+                            if (bitmapToExport != null) {
+                                val result = withContext(Dispatchers.IO) {
+                                    DocumentExporter.exportAndShareBitmap(
+                                        context = context,
+                                        bitmap = bitmapToExport,
+                                        customStorageUri = uiState.customStorageUri
+                                    )
+                                }
+                                onEvent(EditorUiEvent.SetLoading(false))
+                                if (result.isSuccess) {
+                                    onEvent(EditorUiEvent.ExportDocument)
+                                } else {
+                                    Toast.makeText(context, "Error al exportar: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                }
+                            } else {
+                                onEvent(EditorUiEvent.SetLoading(false))
+                                Toast.makeText(context, "Primero carga un documento para exportar", Toast.LENGTH_SHORT).show()
                             }
                         }
-                    }
-                } else {
-                    val bitmapToExport = uiState.maskedBitmap ?: uiState.originalBitmap
-                    if (bitmapToExport != null) {
-                        val result = DocumentExporter.exportAndShareBitmap(
-                            context = context,
-                            bitmap = bitmapToExport,
-                            customStorageUri = uiState.customStorageUri
-                        )
-                        if (result.isSuccess) {
-                            onEvent(EditorUiEvent.ExportDocument)
-                        } else {
-                            Toast.makeText(context, "Error al exportar: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
-                        }
-                    } else {
-                        Toast.makeText(context, "Primero carga un documento para exportar", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        onEvent(EditorUiEvent.SetLoading(false))
+                        Toast.makeText(context, "Error inesperado al exportar: ${e.message}", Toast.LENGTH_LONG).show()
                     }
                 }
             },
@@ -1429,17 +1665,28 @@ fun EditorControlsPane(
                     }
 
                     if (bitmapsToPdf.isNotEmpty()) {
-                        val result = DocumentExporter.savePdfToStorage(
-                            context = context,
-                            bitmaps = bitmapsToPdf,
-                            title = if (uiState.isDualSidedMode) "docmask_dni_completo" else uiState.pdfDocumentName?.removeSuffix(".pdf") ?: "docmask_descarga",
-                            customStorageUri = uiState.customStorageUri
-                        )
-                        if (result.isSuccess) {
-                            Toast.makeText(context, "PDF guardado correctamente en la carpeta de destino.", Toast.LENGTH_LONG).show()
-                            onEvent(EditorUiEvent.DownloadPdf)
-                        } else {
-                            Toast.makeText(context, "Error al guardar PDF: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                        coroutineScope.launch {
+                            onEvent(EditorUiEvent.SetLoading(true, "Guardando documento PDF en almacenamiento..."))
+                            try {
+                                val result = withContext(Dispatchers.IO) {
+                                    DocumentExporter.savePdfToStorage(
+                                        context = context,
+                                        bitmaps = bitmapsToPdf,
+                                        title = if (uiState.isDualSidedMode) "docmask_dni_completo" else uiState.pdfDocumentName?.removeSuffix(".pdf") ?: "docmask_descarga",
+                                        customStorageUri = uiState.customStorageUri
+                                    )
+                                }
+                                onEvent(EditorUiEvent.SetLoading(false))
+                                if (result.isSuccess) {
+                                    Toast.makeText(context, "PDF guardado correctamente en la carpeta de destino.", Toast.LENGTH_LONG).show()
+                                    onEvent(EditorUiEvent.DownloadPdf)
+                                } else {
+                                    Toast.makeText(context, "Error al guardar PDF: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                }
+                            } catch (e: Exception) {
+                                onEvent(EditorUiEvent.SetLoading(false))
+                                Toast.makeText(context, "Error al guardar PDF: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
                         }
                     } else {
                         Toast.makeText(context, "Primero genera o procesa un documento para descargar su PDF.", Toast.LENGTH_SHORT).show()

@@ -8,6 +8,7 @@ enum class AppPermissionType {
 
 enum class AppPermissionStatus {
     GRANTED,
+    PARTIAL,
     DENIED,
     NOT_REQUIRED
 }

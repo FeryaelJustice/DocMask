@@ -167,14 +167,29 @@ class AndroidBitmapProcessor : BitmapProcessor {
         canvas.rotate(config.rotationDegrees, source.width / 2f, source.height / 2f)
 
         if (config.isRepeatedGrid) {
-            val stepY = textSize * 4f
-            val startY = -source.height.toFloat()
-            val endY = source.height * 2f
+            val textBounds = Rect()
+            paint.getTextBounds(text, 0, text.length, textBounds)
+            val textWidth = max(textBounds.width().toFloat(), textSize * 5f)
+            val colStep = textWidth + (textSize * 3f)
+            val rowStep = textSize * 4.5f
 
+            val diagonal = kotlin.math.hypot(source.width.toDouble(), source.height.toDouble()).toFloat()
+            val startX = (source.width / 2f) - diagonal
+            val endX = (source.width / 2f) + diagonal
+            val startY = (source.height / 2f) - diagonal
+            val endY = (source.height / 2f) + diagonal
+
+            var rowIndex = 0
             var y = startY
             while (y < endY) {
-                canvas.drawText(text, -source.width * 0.5f, y, paint)
-                y += stepY
+                val xOffset = if (rowIndex % 2 == 1) colStep * 0.5f else 0f
+                var x = startX + xOffset
+                while (x < endX) {
+                    canvas.drawText(text, x, y, paint)
+                    x += colStep
+                }
+                y += rowStep
+                rowIndex++
             }
         } else {
             val textBounds = Rect()

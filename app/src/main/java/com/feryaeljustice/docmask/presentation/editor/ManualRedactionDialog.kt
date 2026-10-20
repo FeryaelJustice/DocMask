@@ -2,9 +2,11 @@ package com.feryaeljustice.docmask.presentation.editor
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -89,6 +91,8 @@ fun ManualRedactionDialog(
     val aiRegions = remember {
         existingRegions.filter { it.type != SensitiveFieldType.CUSTOM_SELECTION }
     }
+
+    var showFullScreenPreview by remember { mutableStateOf(false) }
 
     var dragStart by remember { mutableStateOf<Offset?>(null) }
     var dragCurrent by remember { mutableStateOf<Offset?>(null) }
@@ -376,7 +380,7 @@ fun ManualRedactionDialog(
                     }
                 }
 
-                // Small Preview Box (Downscaled, no watermark, no grayscale)
+                // Small Preview Box (Downscaled, with applied manual pixelation)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -384,16 +388,28 @@ fun ManualRedactionDialog(
                         containerColor = MaterialTheme.colorScheme.surfaceContainer
                     )
                 ) {
+                    @OptIn(ExperimentalFoundationApi::class)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .combinedClickable(
+                                onClick = {
+                                    // Hint to user
+                                },
+                                onLongClick = {
+                                    if (previewThumbnail != null) {
+                                        showFullScreenPreview = true
+                                    }
+                                }
+                            )
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (previewThumbnail != null) {
                             Image(
                                 bitmap = previewThumbnail!!.asImageBitmap(),
-                                contentDescription = "Vista previa en miniatura",
+                                contentDescription = "Vista previa en miniatura (mantener pulsado para pantalla completa)",
                                 modifier = Modifier
                                     .size(width = 110.dp, height = 75.dp)
                                     .clip(RoundedCornerShape(8.dp))
@@ -422,12 +438,19 @@ fun ManualRedactionDialog(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Comprueba el resultado del pixelado en miniatura antes de aplicar.",
+                                text = "Mantén pulsada la miniatura para ver el resultado a pantalla completa.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
+                }
+
+                if (showFullScreenPreview && previewThumbnail != null) {
+                    FullScreenImagePreviewDialog(
+                        bitmap = previewThumbnail!!,
+                        onDismiss = { showFullScreenPreview = false }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
