@@ -19,7 +19,8 @@ class TemplateRepositoryImpl : TemplateRepository {
                 includeDate = true,
                 opacity = 0.35f
             ),
-            isDefault = true
+            isDefault = true,
+            isFavorite = true
         ),
         WatermarkTemplate(
             id = "template-hotel",
@@ -29,7 +30,8 @@ class TemplateRepositoryImpl : TemplateRepository {
                 includeDate = true,
                 opacity = 0.35f
             ),
-            isDefault = false
+            isDefault = true,
+            isFavorite = true
         ),
         WatermarkTemplate(
             id = "template-employment",
@@ -39,7 +41,19 @@ class TemplateRepositoryImpl : TemplateRepository {
                 includeDate = true,
                 opacity = 0.35f
             ),
-            isDefault = false
+            isDefault = true,
+            isFavorite = false
+        ),
+        WatermarkTemplate(
+            id = "template-banking",
+            title = "Gestión Bancaria",
+            config = WatermarkConfig(
+                purposeText = "Copia exclusiva para trámite bancario",
+                includeDate = true,
+                opacity = 0.35f
+            ),
+            isDefault = true,
+            isFavorite = false
         )
     )
 
@@ -61,6 +75,18 @@ class TemplateRepositoryImpl : TemplateRepository {
     override suspend fun deleteTemplate(templateId: String) {
         _templates.update { current ->
             current.filterNot { it.id == templateId && !it.isDefault }
+        }
+    }
+
+    override suspend fun toggleFavorite(templateId: String) {
+        _templates.update { current ->
+            current.map { template ->
+                if (template.id == templateId) {
+                    template.copy(isFavorite = !template.isFavorite)
+                } else {
+                    template
+                }
+            }
         }
     }
 }

@@ -23,7 +23,7 @@ class TemplateRepositoryTest {
     fun givenInitialState_thenReturnsDefaultTemplates() = runTest {
         val templates = repository.getTemplates().first()
         assertTrue(templates.isNotEmpty())
-        assertTrue(templates.any { it.isDefault })
+        assertEquals(4, templates.count { it.isDefault })
     }
 
     @Test
@@ -72,5 +72,24 @@ class TemplateRepositoryTest {
         assertEquals("Título Modificado", found.title)
         assertEquals("Nuevo propósito", found.config.purposeText)
         assertEquals(0.5f, found.config.opacity, 0.001f)
+    }
+
+    @Test
+    fun givenTemplate_whenToggleFavoriteCalled_thenFavoriteStateInverts() = runTest {
+        val initialTemplates = repository.getTemplates().first()
+        val template = initialTemplates.first()
+        val initialFavorite = template.isFavorite
+
+        repository.toggleFavorite(template.id)
+
+        val updatedTemplates = repository.getTemplates().first()
+        val found = updatedTemplates.first { it.id == template.id }
+        assertEquals(!initialFavorite, found.isFavorite)
+
+        repository.toggleFavorite(template.id)
+
+        val revertedTemplates = repository.getTemplates().first()
+        val revertedFound = revertedTemplates.first { it.id == template.id }
+        assertEquals(initialFavorite, revertedFound.isFavorite)
     }
 }

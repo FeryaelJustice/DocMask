@@ -10,5 +10,6 @@ data class WatermarkTemplate(
     val id: String = UUID.randomUUID().toString(),
     val title: String,
     val config: WatermarkConfig,
-    val isDefault: Boolean = false
+    val isDefault: Boolean = false,
+    val isFavorite: Boolean = false
 )

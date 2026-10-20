@@ -11,11 +11,16 @@ import com.feryaeljustice.docmask.core.model.WatermarkConfig
 import com.feryaeljustice.docmask.data.local.preferences.UserPreferencesRepository
 import com.feryaeljustice.docmask.domain.model.WatermarkTemplate
 import com.feryaeljustice.docmask.domain.repository.BillingRepository
+import com.feryaeljustice.docmask.domain.repository.DocumentQuotaRepository
+import com.feryaeljustice.docmask.domain.repository.StoragePreferencesRepository
+import com.feryaeljustice.docmask.domain.usecase.ApplyAepdPresetUseCase
 import com.feryaeljustice.docmask.domain.usecase.ApplyMaskingUseCase
+import com.feryaeljustice.docmask.domain.usecase.CheckAppPermissionsUseCase
+import com.feryaeljustice.docmask.domain.usecase.DeleteWatermarkTemplateUseCase
 import com.feryaeljustice.docmask.domain.usecase.DetectSensitiveRegionsUseCase
 import com.feryaeljustice.docmask.domain.usecase.GetWatermarkTemplatesUseCase
 import com.feryaeljustice.docmask.domain.usecase.SaveWatermarkTemplateUseCase
-import com.feryaeljustice.docmask.domain.usecase.DeleteWatermarkTemplateUseCase
+import com.feryaeljustice.docmask.domain.usecase.ToggleFavoriteTemplateUseCase
 import com.feryaeljustice.docmask.util.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -47,8 +52,13 @@ class EditorViewModelTest {
     private val getWatermarkTemplatesUseCase: GetWatermarkTemplatesUseCase = mockk()
     private val saveWatermarkTemplateUseCase: SaveWatermarkTemplateUseCase = mockk()
     private val deleteWatermarkTemplateUseCase: DeleteWatermarkTemplateUseCase = mockk()
+    private val toggleFavoriteTemplateUseCase: ToggleFavoriteTemplateUseCase = mockk()
     private val billingRepository: BillingRepository = mockk()
     private val userPreferencesRepository: UserPreferencesRepository = mockk()
+    private val documentQuotaRepository: DocumentQuotaRepository = mockk()
+    private val storagePreferencesRepository: StoragePreferencesRepository = mockk()
+    private val applyAepdPresetUseCase: ApplyAepdPresetUseCase = mockk()
+    private val checkAppPermissionsUseCase: CheckAppPermissionsUseCase = mockk()
     private val testBitmap: Bitmap = mockk()
     private val maskedBitmap: Bitmap = mockk()
 
@@ -69,9 +79,18 @@ class EditorViewModelTest {
         every { billingRepository.isProUser } returns flowOf(false)
         every { billingRepository.setDebugProStatus(any()) } returns Unit
         every { userPreferencesRepository.isBiometricEnabled } returns flowOf(false)
+        every { documentQuotaRepository.dailyExportCount } returns flowOf(0)
+        every { storagePreferencesRepository.customStorageUri } returns flowOf(null)
+        coEvery { storagePreferencesRepository.setCustomStorageUri(any()) } returns Unit
+        coEvery { documentQuotaRepository.getMaxDailyLimit(any()) } returns 3
+        coEvery { documentQuotaRepository.canExportToday(any()) } returns true
+        coEvery { documentQuotaRepository.recordExport() } returns Unit
         coEvery { userPreferencesRepository.setBiometricEnabled(any()) } returns Unit
         coEvery { saveWatermarkTemplateUseCase(any()) } returns Unit
         coEvery { deleteWatermarkTemplateUseCase(any()) } returns Unit
+        coEvery { toggleFavoriteTemplateUseCase(any()) } returns Unit
+        every { applyAepdPresetUseCase(any()) } answers { firstArg() }
+        every { checkAppPermissionsUseCase(any()) } returns emptyList()
 
         viewModel = EditorViewModel(
             detectSensitiveRegionsUseCase = detectSensitiveRegionsUseCase,
@@ -79,8 +98,15 @@ class EditorViewModelTest {
             getWatermarkTemplatesUseCase = getWatermarkTemplatesUseCase,
             saveWatermarkTemplateUseCase = saveWatermarkTemplateUseCase,
             deleteWatermarkTemplateUseCase = deleteWatermarkTemplateUseCase,
+            toggleFavoriteTemplateUseCase = toggleFavoriteTemplateUseCase,
             billingRepository = billingRepository,
-            userPreferencesRepository = userPreferencesRepository
+            userPreferencesRepository = userPreferencesRepository,
+            documentQuotaRepository = documentQuotaRepository,
+            storagePreferencesRepository = storagePreferencesRepository,
+            applyAepdPresetUseCase = applyAepdPresetUseCase,
+            checkAppPermissionsUseCase = checkAppPermissionsUseCase,
+            defaultDispatcher = mainDispatcherRule.testDispatcher,
+            ioDispatcher = mainDispatcherRule.testDispatcher
         )
     }
 
@@ -91,8 +117,34 @@ class EditorViewModelTest {
             assertEquals(1, state.availableTemplates.size)
             assertEquals("template-1", state.selectedTemplateId)
             assertEquals("Para alquiler", state.maskingOptions.watermarkConfig.purposeText)
+            assertEquals(InputMode.SINGLE_PHOTO, state.inputMode)
             assertFalse(state.isProUser)
             assertFalse(state.hasDocument)
+        }
+    }
+
+    @Test
+    fun givenSegmentedSelection_whenPdfModeChosen_thenResetsDualSidedMode() = runTest {
+        viewModel.onEvent(EditorUiEvent.ToggleDualSidedMode(true))
+        viewModel.onEvent(EditorUiEvent.SelectInputMode(InputMode.PDF_DOCUMENT))
+
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertEquals(InputMode.PDF_DOCUMENT, state.inputMode)
+            assertFalse(state.isDualSidedMode)
+            assertTrue(state.isPdfMode)
+        }
+    }
+
+    @Test
+    fun givenSinglePhotoMode_whenDniDualModeChosen_thenActivatesDualSidedMode() = runTest {
+        viewModel.onEvent(EditorUiEvent.SelectInputMode(InputMode.DNI_DUAL))
+
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertEquals(InputMode.DNI_DUAL, state.inputMode)
+            assertTrue(state.isDualSidedMode)
+            assertEquals(DocumentSide.FRONT, state.activeSide)
         }
     }
 
@@ -198,6 +250,16 @@ class EditorViewModelTest {
     }
 
     @Test
+    fun givenPixelIntensityChanged_whenEventSent_thenUpdatesPixelPercent() = runTest {
+        viewModel.onEvent(EditorUiEvent.UpdatePixelIntensity(75))
+
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertEquals(75, state.maskingOptions.pixelPercent)
+        }
+    }
+
+    @Test
     fun givenSaveTemplateDispatched_whenEventSent_thenInvokesSaveUseCase() = runTest {
         val newTemplate = WatermarkTemplate(
             id = "custom-test",
@@ -285,5 +347,59 @@ class EditorViewModelTest {
             assertFalse(state.hasBack)
             assertFalse(state.canExport)
         }
+    }
+
+    @Test
+    fun givenTemplateId_whenToggleFavoriteEventSent_thenInvokesUseCase() = runTest {
+        viewModel.onEvent(EditorUiEvent.ToggleFavoriteTemplate("template-1"))
+        coVerify(exactly = 1) { toggleFavoriteTemplateUseCase("template-1") }
+    }
+
+    @Test
+    fun givenSaveManualRegionsDispatched_whenEventSent_thenCombinesAiAndManualRegions() = runTest {
+        coEvery { detectSensitiveRegionsUseCase(testBitmap) } returns DocMaskResult.Success(emptyList())
+        coEvery { applyMaskingUseCase(any(), any(), any()) } returns DocMaskResult.Success(maskedBitmap)
+
+        viewModel.onEvent(EditorUiEvent.ImageSelected(testBitmap, DocumentSide.FRONT))
+
+        val manualArea = RedactionArea(
+            id = "manual-1",
+            type = SensitiveFieldType.CUSTOM_SELECTION,
+            boundingBox = BoundingBox(0.1f, 0.1f, 0.5f, 0.5f),
+            isRedacted = true
+        )
+
+        viewModel.onEvent(EditorUiEvent.SaveManualRegions(DocumentSide.FRONT, listOf(manualArea)))
+
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertTrue(state.detectedRegions.any { it.id == "manual-1" })
+        }
+    }
+
+    @Test
+    fun givenGeneratePdfToggled_whenUserIsNotPro_thenSetsErrorMessage() = runTest {
+        viewModel.onEvent(EditorUiEvent.ToggleGeneratePdf(true))
+
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertFalse(state.generatePdfForDni)
+            assertTrue(state.errorMessage?.contains("DocMask Pro") == true)
+        }
+    }
+
+    @Test
+    fun givenRestorePurchasesDispatched_whenEventSent_thenInvokesBillingRepository() = runTest {
+        coEvery { billingRepository.restorePurchases() } returns Result.success(true)
+
+        viewModel.onEvent(EditorUiEvent.RestorePurchases)
+
+        coVerify(exactly = 1) { billingRepository.restorePurchases() }
+    }
+
+    @Test
+    fun givenCustomStorageUriUpdated_whenInvoked_thenCallsStoragePreferencesRepository() = runTest {
+        viewModel.updateCustomStorageUri("content://tree/custom")
+        coVerify(exactly = 1) { storagePreferencesRepository.setCustomStorageUri("content://tree/custom") }
     }
 }

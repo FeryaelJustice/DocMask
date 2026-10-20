@@ -69,6 +69,7 @@ dependencies {
     // Local Storage & Biometric Security
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.biometric)
+    implementation("androidx.documentfile:documentfile:1.0.0")
 
     // In-App Purchase via Google Play IPC (No internet permission needed)
     implementation(libs.play.billing.ktx)

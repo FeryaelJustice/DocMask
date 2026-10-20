@@ -7,5 +7,6 @@ data class MaskingOptions(
     val applyGrayscale: Boolean = true,
     val applyPixelation: Boolean = true,
     val pixelBlockSize: Int = 24,
+    val pixelPercent: Int = 60,
     val watermarkConfig: WatermarkConfig = WatermarkConfig()
 )

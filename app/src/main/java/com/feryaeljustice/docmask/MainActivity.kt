@@ -35,7 +35,7 @@ class MainActivity : FragmentActivity() {
         }
         setContent {
             val isBiometricEnabled by userPreferencesRepository.isBiometricEnabled.collectAsState(initial = null)
-            var isAuthenticated by remember { mutableStateOf(false) }
+            var isAuthenticated by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
 
             LaunchedEffect(isBiometricEnabled) {
                 if (isBiometricEnabled == true && !isAuthenticated) {

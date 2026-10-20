@@ -24,6 +24,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -49,6 +52,8 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,6 +70,7 @@ fun TemplatesScreen(
     onNavigateBack: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
     var showDialog by remember { mutableStateOf(false) }
     var editingTemplate by remember { mutableStateOf<WatermarkTemplate?>(null) }
 
@@ -84,8 +90,18 @@ fun TemplatesScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    editingTemplate = null
-                    showDialog = true
+                    if (uiState.availableTemplates.size >= uiState.maxTemplatesLimit) {
+                        val max = uiState.maxTemplatesLimit
+                        val msg = if (uiState.isProUser) {
+                            "Has alcanzado el límite máximo de $max plantillas en la versión Pro."
+                        } else {
+                            "Has alcanzado el límite de $max plantillas gratuitas. Mejora a Pro para guardar hasta 15 plantillas."
+                        }
+                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                    } else {
+                        editingTemplate = null
+                        showDialog = true
+                    }
                 },
                 modifier = Modifier.defaultMinSize(minWidth = 56.dp, minHeight = 56.dp)
             ) {
@@ -116,12 +132,24 @@ fun TemplatesScreen(
 
             // Section 1: Default System Templates
             item {
-                Text(
-                    text = "Plantillas Predeterminadas",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp, bottom = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Plantillas Predeterminadas",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "${uiState.availableTemplates.size}/${uiState.maxTemplatesLimit}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             items(uiState.defaultTemplates, key = { it.id }) { template ->
@@ -132,7 +160,8 @@ fun TemplatesScreen(
                     onLongClick = {
                         editingTemplate = template
                         showDialog = true
-                    }
+                    },
+                    onToggleFavorite = { viewModel.onEvent(EditorUiEvent.ToggleFavoriteTemplate(template.id)) }
                 )
             }
 
@@ -202,7 +231,8 @@ fun TemplatesScreen(
                         onLongClick = {
                             editingTemplate = template
                             showDialog = true
-                        }
+                        },
+                        onToggleFavorite = { viewModel.onEvent(EditorUiEvent.ToggleFavoriteTemplate(template.id)) }
                     )
                 }
             }
@@ -235,6 +265,7 @@ fun TemplateCard(
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onToggleFavorite: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -289,26 +320,41 @@ fun TemplateCard(
                 }
             }
 
-            if (isSelected) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onToggleFavorite,
+                    modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
+                ) {
                     Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "Activa",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Activa",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
+                        imageVector = if (template.isFavorite) Icons.Default.Star else Icons.Outlined.StarOutline,
+                        contentDescription = if (template.isFavorite) "Quitar de favoritos" else "Marcar como favorita",
+                        tint = if (template.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            } else {
-                OutlinedButton(
-                    onClick = onClick,
-                    modifier = Modifier.defaultMinSize(minHeight = 44.dp)
-                ) {
-                    Text("Usar")
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                if (isSelected) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Activa",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Activa",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = onClick,
+                        modifier = Modifier.defaultMinSize(minHeight = 44.dp)
+                    ) {
+                        Text("Usar")
+                    }
                 }
             }
         }

@@ -1,16 +1,30 @@
 package com.feryaeljustice.docmask.presentation.editor
 
+import android.content.Context
+import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -19,6 +33,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,53 +49,94 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBar
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.filled.WorkspacePremium
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Tab
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.feryaeljustice.docmask.core.model.DocumentSide
+import com.feryaeljustice.docmask.core.model.RedactionArea
+import com.feryaeljustice.docmask.core.util.CameraCaptureHelper
 import com.feryaeljustice.docmask.core.util.DocumentExporter
+import com.feryaeljustice.docmask.core.util.PdfDocumentManager
+import com.feryaeljustice.docmask.data.ml.SensitiveFieldDetector
+import com.feryaeljustice.docmask.presentation.pro.ProScreen
 import com.feryaeljustice.docmask.presentation.settings.SettingsScreen
 import com.feryaeljustice.docmask.presentation.templates.TemplatesScreen
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
+
+fun getFileNameFromUri(context: Context, uri: Uri): String {
+    var name = "documento.pdf"
+    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+        if (nameIndex != -1 && cursor.moveToFirst()) {
+            name = cursor.getString(nameIndex)
+        }
+    }
+    return name
+}
 
 /**
  * Adaptive Document Editor Screen for phones, foldables, and tablets.
@@ -93,25 +149,144 @@ fun DocMaskApp(
     viewModel: EditorViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var currentDestination by remember { mutableStateOf("editor") }
+    var currentDestination by rememberSaveable { mutableStateOf("editor") }
+    var showManualEditorDialog by rememberSaveable { mutableStateOf(false) }
+    var showPhotoSourceSheet by remember { mutableStateOf(false) }
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            try {
-                val bitmap: Bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, it)) { decoder, _, _ ->
-                        decoder.isMutableRequired = true
+            viewModel.onEvent(EditorUiEvent.SetLoading(true, "Cargando imagen..."))
+            coroutineScope.launch {
+                try {
+                    val bitmap: Bitmap = withContext(Dispatchers.IO) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, it)) { decoder, _, _ ->
+                                decoder.isMutableRequired = true
+                            }
+                        } else {
+                            @Suppress("DEPRECATION")
+                            MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                        }
                     }
-                } else {
-                    @Suppress("DEPRECATION")
-                    MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                    viewModel.onEvent(EditorUiEvent.ImageSelected(bitmap, uiState.activeSide))
+                } catch (e: Exception) {
+                    viewModel.onEvent(EditorUiEvent.ShowError("Error al cargar imagen: ${e.message}"))
                 }
-                viewModel.onEvent(EditorUiEvent.ImageSelected(bitmap, uiState.activeSide))
-            } catch (e: Exception) {
-                Toast.makeText(context, "Error al cargar imagen: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success) {
+            tempCameraUri?.let { uri ->
+                viewModel.onEvent(EditorUiEvent.SetLoading(true, "Procesando foto de cámara..."))
+                coroutineScope.launch {
+                    try {
+                        val bitmap: Bitmap = withContext(Dispatchers.IO) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
+                                decoder.isMutableRequired = true
+                            }
+                            } else {
+                                @Suppress("DEPRECATION")
+                                MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                            }
+                        }
+                        viewModel.onEvent(EditorUiEvent.ImageSelected(bitmap, uiState.activeSide))
+                    } catch (e: Exception) {
+                        viewModel.onEvent(EditorUiEvent.ShowError("Error al procesar foto de cámara: ${e.message}"))
+                    }
+                }
+            }
+        }
+    }
+
+    val pdfPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let { pdfUri ->
+            viewModel.onEvent(EditorUiEvent.SetLoading(true, "Cargando documento PDF..."))
+            coroutineScope.launch {
+                try {
+                    val fileName = getFileNameFromUri(context, pdfUri)
+                    val pagesResult = withContext(Dispatchers.IO) {
+                        PdfDocumentManager.renderPdfPagesToBitmaps(context, pdfUri)
+                    }
+                    val pages = pagesResult.getOrThrow()
+                    if (pages.isEmpty()) {
+                        viewModel.onEvent(EditorUiEvent.ShowError("El documento PDF no contiene páginas válidas."))
+                        return@launch
+                    }
+
+                    viewModel.onEvent(EditorUiEvent.PdfSelected(fileName, pages, emptyList()))
+                } catch (e: Exception) {
+                    viewModel.onEvent(EditorUiEvent.ShowError("Error al importar PDF: ${e.message}"))
+                }
+            }
+        }
+    }
+
+    val onPickDocumentAction = {
+        if (uiState.isPdfMode) {
+            pdfPickerLauncher.launch(arrayOf("application/pdf"))
+        } else {
+            showPhotoSourceSheet = true
+        }
+    }
+
+    if (showPhotoSourceSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showPhotoSourceSheet = false },
+            sheetState = rememberModalBottomSheetState()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Seleccionar origen de la imagen",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Button(
+                    onClick = {
+                        showPhotoSourceSheet = false
+                        try {
+                            val uri = CameraCaptureHelper.createCameraTempUri(context)
+                            tempCameraUri = uri
+                            cameraLauncher.launch(uri)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "No se pudo iniciar la cámara: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp)
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Hacer foto con la cámara")
+                }
+                OutlinedButton(
+                    onClick = {
+                        showPhotoSourceSheet = false
+                        imagePickerLauncher.launch("image/*")
+                    },
+                    modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp)
+                ) {
+                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Elegir de la galería")
+                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
@@ -133,7 +308,7 @@ fun DocMaskApp(
                 modifier = Modifier.testTag("nav_item_templates")
             )
             item(
-                selected = currentDestination == "settings",
+                selected = currentDestination == "settings" || currentDestination == "pro",
                 onClick = { currentDestination = "settings" },
                 icon = { Icon(Icons.Default.Settings, contentDescription = "Ajustes") },
                 label = { Text("Ajustes") },
@@ -150,25 +325,46 @@ fun DocMaskApp(
             }
             "settings" -> {
                 SettingsScreen(
-                    viewModel = viewModel
+                    viewModel = viewModel,
+                    onNavigateToPro = { currentDestination = "pro" }
+                )
+            }
+            "pro" -> {
+                ProScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { currentDestination = "settings" }
                 )
             }
             else -> {
                 Scaffold(
                     topBar = {
                         TopAppBar(
-                            title = {
-                                Text(
-                                    text = "DocMask",
-                                    fontWeight = FontWeight.Bold
-                                )
-                            },
-                            navigationIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Description,
-                                    contentDescription = null,
-                                    modifier = Modifier.padding(start = 12.dp)
-                                )
+                            title = { Text("DocMask") },
+                            actions = {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier.padding(end = 12.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Security,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "100% Offline",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
                         )
                     }
@@ -197,7 +393,7 @@ fun DocMaskApp(
                                     DocumentViewerPane(
                                         uiState = uiState,
                                         onEvent = viewModel::onEvent,
-                                        onPickImage = { imagePickerLauncher.launch("image/*") },
+                                        onPickDocument = onPickDocumentAction,
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 }
@@ -211,7 +407,9 @@ fun DocMaskApp(
                                     EditorControlsPane(
                                         uiState = uiState,
                                         onEvent = viewModel::onEvent,
-                                        onPickImage = { imagePickerLauncher.launch("image/*") },
+                                        onPickDocument = onPickDocumentAction,
+                                        onNavigateToPro = { currentDestination = "pro" },
+                                        onEditManualRegions = { showManualEditorDialog = true },
                                         modifier = Modifier.verticalScroll(rememberScrollState())
                                     )
                                 }
@@ -228,7 +426,7 @@ fun DocMaskApp(
                                 DocumentViewerPane(
                                     uiState = uiState,
                                     onEvent = viewModel::onEvent,
-                                    onPickImage = { imagePickerLauncher.launch("image/*") },
+                                    onPickDocument = onPickDocumentAction,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(280.dp)
@@ -237,9 +435,87 @@ fun DocMaskApp(
                                 EditorControlsPane(
                                     uiState = uiState,
                                     onEvent = viewModel::onEvent,
-                                    onPickImage = { imagePickerLauncher.launch("image/*") }
+                                    onPickDocument = onPickDocumentAction,
+                                    onNavigateToPro = { currentDestination = "pro" },
+                                    onEditManualRegions = { showManualEditorDialog = true }
                                 )
                             }
+                        }
+
+                        // Modal Overlay for Loading / Exporting Operations
+                        if (uiState.isLoading || uiState.isExporting) {
+                            Dialog(onDismissRequest = { /* Prevent dismissing while running */ }) {
+                                Card(
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                                    modifier = Modifier.padding(24.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(24.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(48.dp),
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Text(
+                                            text = uiState.loadingMessage ?: "Procesando documento...",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Error Dialog
+                        uiState.errorMessage?.let { error ->
+                            androidx.compose.material3.AlertDialog(
+                                onDismissRequest = { viewModel.onEvent(EditorUiEvent.DismissError) },
+                                title = { Text("Aviso de Error") },
+                                text = { Text(error) },
+                                confirmButton = {
+                                    androidx.compose.material3.TextButton(
+                                        onClick = { viewModel.onEvent(EditorUiEvent.DismissError) }
+                                    ) {
+                                        Text("Entendido")
+                                    }
+                                }
+                            )
+                        }
+
+                        // Success message Dialog
+                        uiState.exportSuccessMessage?.let { successMsg ->
+                            androidx.compose.material3.AlertDialog(
+                                onDismissRequest = { viewModel.onEvent(EditorUiEvent.DismissSuccessMessage) },
+                                title = { Text("Operación Exitosa") },
+                                text = { Text(successMsg) },
+                                confirmButton = {
+                                    androidx.compose.material3.TextButton(
+                                        onClick = { viewModel.onEvent(EditorUiEvent.DismissSuccessMessage) }
+                                    ) {
+                                        Text("Aceptar")
+                                    }
+                                }
+                            )
+                        }
+
+                        // Manual Redaction Pro Dialog
+                        if (showManualEditorDialog && uiState.currentOriginalBitmap != null) {
+                            ManualRedactionDialog(
+                                originalBitmap = uiState.currentOriginalBitmap!!,
+                                existingRegions = uiState.currentDetectedRegions,
+                                side = uiState.activeSide,
+                                onDismiss = { showManualEditorDialog = false },
+                                onSave = { manualRegions ->
+                                    viewModel.onEvent(EditorUiEvent.SaveManualRegions(uiState.activeSide, manualRegions))
+                                    showManualEditorDialog = false
+                                }
+                            )
                         }
                     }
                 }
@@ -248,11 +524,12 @@ fun DocMaskApp(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentViewerPane(
     uiState: EditorUiState,
     onEvent: (EditorUiEvent) -> Unit,
-    onPickImage: () -> Unit = {},
+    onPickDocument: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -261,6 +538,80 @@ fun DocumentViewerPane(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
+            // Top Input Mode Segmented Button
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        selected = uiState.inputMode == InputMode.SINGLE_PHOTO,
+                        onClick = { onEvent(EditorUiEvent.SelectInputMode(InputMode.SINGLE_PHOTO)) },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
+                        icon = {
+                            SegmentedButtonDefaults.Icon(active = uiState.inputMode == InputMode.SINGLE_PHOTO) {
+                                Icon(
+                                    imageVector = Icons.Default.AddPhotoAlternate,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SegmentedButtonDefaults.IconSize)
+                                )
+                            }
+                        },
+                        label = {
+                            Text(
+                                text = "1 Cara",
+                                maxLines = 1,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    )
+                    SegmentedButton(
+                        selected = uiState.inputMode == InputMode.DNI_DUAL,
+                        onClick = { onEvent(EditorUiEvent.SelectInputMode(InputMode.DNI_DUAL)) },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
+                        icon = {
+                            SegmentedButtonDefaults.Icon(active = uiState.inputMode == InputMode.DNI_DUAL) {
+                                Icon(
+                                    imageVector = Icons.Default.Description,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SegmentedButtonDefaults.IconSize)
+                                )
+                            }
+                        },
+                        label = {
+                            Text(
+                                text = "2 Caras",
+                                maxLines = 1,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    )
+                    SegmentedButton(
+                        selected = uiState.inputMode == InputMode.PDF_DOCUMENT,
+                        onClick = { onEvent(EditorUiEvent.SelectInputMode(InputMode.PDF_DOCUMENT)) },
+                        shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
+                        icon = {
+                            SegmentedButtonDefaults.Icon(active = uiState.inputMode == InputMode.PDF_DOCUMENT) {
+                                Icon(
+                                    imageVector = Icons.Default.PictureAsPdf,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SegmentedButtonDefaults.IconSize)
+                                )
+                            }
+                        },
+                        label = {
+                            Text(
+                                text = "PDF",
+                                maxLines = 1,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    )
+                }
+            }
+
+            // Dual-sided tabs when in DNI dual mode
             if (uiState.isDualSidedMode) {
                 PrimaryTabRow(
                     selectedTabIndex = if (uiState.activeSide == DocumentSide.FRONT) 0 else 1
@@ -304,77 +655,152 @@ fun DocumentViewerPane(
                 }
             }
 
+            // Main Viewer Canvas / Card
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                val bitmap = uiState.currentMaskedBitmap ?: uiState.currentOriginalBitmap
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = if (uiState.isDualSidedMode) {
-                            "Documento protegido (${uiState.activeSide.displayName})"
-                        } else "Documento protegido",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp))
-                            .clickable { onPickImage() },
-                        contentScale = ContentScale.Fit
-                    )
-                } else {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clickable { onPickImage() }
-                            .padding(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FolderOpen,
-                            contentDescription = null,
-                            modifier = Modifier.size(56.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = if (uiState.isDualSidedMode) {
-                                "Cargar ${uiState.activeSide.displayName}"
-                            } else "Selecciona un documento para proteger",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = if (uiState.isDualSidedMode) {
-                                "Pulsa para adjuntar la imagen del ${uiState.activeSide.displayName.lowercase()}"
-                            } else "Procesamiento 100% offline y seguro",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(14.dp))
-                        OutlinedButton(
-                            onClick = onPickImage,
-                            modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                if (uiState.isPdfMode) {
+                    // PDF Document Executive Card View
+                    if (uiState.hasDocument) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable { onPickDocument() }
+                                .padding(20.dp)
                         ) {
-                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(72.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.PictureAsPdf,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                if (uiState.isDualSidedMode) "Cargar ${uiState.activeSide.displayName}"
-                                else "Cargar Documento"
+                                text = uiState.pdfDocumentName ?: "documento.pdf",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "${uiState.pdfPageCount} páginas • ${uiState.pdfDetectedRegions.size} campos de riesgo identificados",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(onClick = onPickDocument) {
+                                Text("Cambiar Documento PDF")
+                            }
+                        }
+                    } else {
+                        // Empty PDF placeholder
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable { onPickDocument() }
+                                .padding(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PictureAsPdf,
+                                contentDescription = null,
+                                modifier = Modifier.size(56.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "Selecciona un documento PDF para proteger",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Procesamiento 100% offline página por página",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                            OutlinedButton(
+                                onClick = onPickDocument,
+                                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                            ) {
+                                Icon(Icons.Default.FolderOpen, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Cargar Documento PDF")
+                            }
                         }
                     }
-                }
-
-                if (uiState.isLoading) {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
+                } else {
+                    // Bitmap Photo / DNI Viewer
+                    val bitmap = uiState.currentMaskedBitmap ?: uiState.currentOriginalBitmap
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = if (uiState.isDualSidedMode) {
+                                "Documento protegido (${uiState.activeSide.displayName})"
+                            } else "Documento protegido",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp))
+                                .clickable { onPickDocument() },
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable { onPickDocument() }
+                                .padding(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FolderOpen,
+                                contentDescription = null,
+                                modifier = Modifier.size(56.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = if (uiState.isDualSidedMode) {
+                                    "Cargar ${uiState.activeSide.displayName}"
+                                } else "Selecciona un documento para proteger",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (uiState.isDualSidedMode) {
+                                    "Pulsa para adjuntar la foto del ${uiState.activeSide.displayName.lowercase()}"
+                                } else "Procesamiento 100% offline y seguro",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                            OutlinedButton(
+                                onClick = onPickDocument,
+                                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                            ) {
+                                Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    if (uiState.isDualSidedMode) "Cargar ${uiState.activeSide.displayName}"
+                                    else "Cargar Documento"
+                                )
+                            }
                         }
                     }
                 }
@@ -383,140 +809,247 @@ fun DocumentViewerPane(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun EditorControlsPane(
     uiState: EditorUiState,
     onEvent: (EditorUiEvent) -> Unit,
-    onPickImage: () -> Unit = {},
+    onPickDocument: () -> Unit = {},
+    onNavigateToPro: () -> Unit = {},
+    onEditManualRegions: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var showFullScreenPreview by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Pro Dual-Sided Mode Card
-        if (uiState.isProUser) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                ),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
+        // Thumbnail & Quick Actions Row
+        if (!uiState.isPdfMode && uiState.hasDocument) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
+                val originalThumb = uiState.currentOriginalBitmap
+                if (originalThumb != null) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .combinedClickable(
+                                onClick = {
+                                    Toast.makeText(context, "Mantén pulsado para ampliar la foto original", Toast.LENGTH_SHORT).show()
+                                },
+                                onLongClick = {
+                                    showFullScreenPreview = true
+                                }
+                            )
+                            .padding(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.WorkspacePremium,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "DNI Doble Cara (Anverso / Reverso)",
-                                    style = MaterialTheme.typography.titleSmall
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(2.dp))
+                        Image(
+                            bitmap = originalThumb.asImageBitmap(),
+                            contentDescription = "Miniatura original (mantener para pantalla completa)",
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
                             Text(
-                                text = "Procesa ambas caras en lote con una sola marca de agua.",
-                                style = MaterialTheme.typography.bodySmall,
+                                text = "Original sin efecto",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Mantén pulsado para ampliar",
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(
-                            checked = uiState.isDualSidedMode,
-                            onCheckedChange = { onEvent(EditorUiEvent.ToggleDualSidedMode(it)) }
+                    }
+
+                    if (showFullScreenPreview) {
+                        FullScreenImagePreviewDialog(
+                            bitmap = originalThumb,
+                            onDismiss = { showFullScreenPreview = false }
                         )
                     }
-                    if (uiState.isDualSidedMode) {
-                        Spacer(modifier = Modifier.height(6.dp))
+                } else {
+                    Spacer(modifier = Modifier.width(1.dp))
+                }
+
+                val configuration = LocalConfiguration.current
+                val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+                val actionButtons: @Composable () -> Unit = {
+                    Button(
+                        onClick = {
+                            if (uiState.isProUser) {
+                                onEditManualRegions()
+                            } else {
+                                onNavigateToPro()
+                            }
+                        },
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = 44.dp)
+                            .testTag("button_manual_redaction")
+                    ) {
+                        Icon(Icons.Default.Draw, contentDescription = null)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Zonas manuales PRO")
+                    }
+
+                    OutlinedButton(
+                        onClick = onPickDocument,
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = 44.dp)
+                            .testTag("button_change_document")
+                    ) {
+                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Aviso: Diseñado para DNI u otro documento de dos caras. Si adjuntas otro tipo de archivo queda bajo tu responsabilidad.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            if (uiState.isDualSidedMode) "Cambiar ${uiState.activeSide.displayName}"
+                            else "Cambiar Documento"
                         )
+                    }
+                }
+
+                if (isLandscape) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        actionButtons()
+                    }
+                } else {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        actionButtons()
                     }
                 }
             }
         }
 
-        // Document actions (Change / Load)
-        if (uiState.hasDocument) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                OutlinedButton(
-                    onClick = onPickImage,
-                    modifier = Modifier.defaultMinSize(minHeight = 44.dp)
-                ) {
-                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        if (uiState.isDualSidedMode) "Cambiar ${uiState.activeSide.displayName}"
-                        else "Cambiar Documento"
-                    )
-                }
-            }
-        }
-
-        // Sensitive data detection status & action
-        Text(
-            text = if (uiState.isDualSidedMode) "Detección Local (${uiState.activeSide.displayName})"
-                   else "Detección Local de Datos",
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary
-        )
-
+        // Sensitive data detection header & actions
+        val regions = uiState.currentDetectedRegions
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "${uiState.redactedCount} de ${uiState.currentDetectedRegions.size} campos protegidos",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Button(
-                onClick = { onEvent(EditorUiEvent.RedactAllSensitive(true)) },
-                enabled = uiState.hasDocument,
-                modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-            ) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Pixelar Todo")
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (uiState.isPdfMode) "Campos Identificados en PDF"
+                           else if (uiState.isDualSidedMode) "Datos en ${uiState.activeSide.displayName}"
+                           else "Datos Sensibles Detectados",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${uiState.redactedCount} de ${regions.size} campos seleccionados para pixelar",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedButton(
+                    onClick = { onEvent(EditorUiEvent.ApplyAepdPreset) },
+                    modifier = Modifier.defaultMinSize(minHeight = 40.dp)
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("AEPD")
+                }
+                OutlinedButton(
+                    onClick = {
+                        val allRedacted = regions.all { it.isRedacted }
+                        onEvent(EditorUiEvent.RedactAllSensitive(!allRedacted))
+                    },
+                    modifier = Modifier.defaultMinSize(minHeight = 40.dp)
+                ) {
+                    val allRedacted = regions.all { it.isRedacted }
+                    Text(if (allRedacted) "Desmarcar" else "Pixelar Todo")
+                }
             }
         }
 
-        // Region chips
-        if (uiState.currentDetectedRegions.isNotEmpty()) {
+        // Sensitive fields chips
+        if (regions.isNotEmpty()) {
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                uiState.currentDetectedRegions.forEach { region ->
+                regions.forEach { area ->
                     FilterChip(
-                        selected = region.isRedacted,
-                        onClick = { onEvent(EditorUiEvent.ToggleRegionRedaction(region.id)) },
-                        label = { Text(region.type.displayName) },
-                        leadingIcon = if (region.isRedacted) {
-                            { Icon(Icons.Default.Check, contentDescription = null) }
+                        selected = area.isRedacted,
+                        onClick = { onEvent(EditorUiEvent.ToggleRegionRedaction(area.id)) },
+                        label = {
+                            val label = if (uiState.isPdfMode && area.pageIndex > 0) {
+                                "Pág ${area.pageIndex}: ${area.type.displayName}"
+                            } else {
+                                area.type.displayName
+                            }
+                            Text(label)
+                        },
+                        leadingIcon = if (area.isRedacted) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         } else null,
                         modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                     )
                 }
             }
+        }
+
+        // Pixelation intensity slider
+        val currentPixelPercent = uiState.maskingOptions.pixelPercent
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Intensidad de Pixelado / Blur",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "Ajuste uniforme para todas las áreas sensibles",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    text = "$currentPixelPercent%",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Slider(
+                value = currentPixelPercent.toFloat(),
+                onValueChange = { onEvent(EditorUiEvent.UpdatePixelIntensity(it.toInt())) },
+                valueRange = 10f..100f,
+                steps = 17,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("slider_pixel_intensity")
+            )
         }
 
         // Grayscale switch
@@ -550,6 +1083,44 @@ fun EditorControlsPane(
             color = MaterialTheme.colorScheme.primary
         )
 
+        // Watermark with Date (PRO feature switch)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Incluir fecha de hoy en la marca",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = "PRO",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                Text(
+                    text = "Añade automáticamente el sufijo de fecha (- dd/MM/yyyy)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = uiState.maskingOptions.watermarkConfig.includeDate,
+                onCheckedChange = { onEvent(EditorUiEvent.ToggleWatermarkDate(it)) }
+            )
+        }
+
         OutlinedTextField(
             value = uiState.maskingOptions.watermarkConfig.purposeText,
             onValueChange = { onEvent(EditorUiEvent.UpdateWatermarkText(it)) },
@@ -558,7 +1129,7 @@ fun EditorControlsPane(
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Watermark opacity slider
+        // Watermark opacity slider (with debounced/responsive steps to avoid ANR)
         val currentOpacity = uiState.maskingOptions.watermarkConfig.opacity
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -579,36 +1150,192 @@ fun EditorControlsPane(
             value = currentOpacity,
             onValueChange = { onEvent(EditorUiEvent.UpdateWatermarkOpacity(it)) },
             valueRange = 0.1f..0.8f,
-            modifier = Modifier.fillMaxWidth()
+            steps = 13,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("slider_watermark_opacity")
         )
 
-        // Template chips
-        if (uiState.availableTemplates.isNotEmpty()) {
-            Text(
-                text = "Plantillas Rápidas",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        // Quick template chips (Favorite templates prioritized)
+        val quickTemplates = uiState.favoriteTemplates.ifEmpty { uiState.defaultTemplates }
+        if (quickTemplates.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Plantillas Rápidas (Favoritas)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (uiState.favoriteTemplates.isEmpty()) {
+                    Text(
+                        text = "Predeterminadas (Marca ⭐ en Plantillas)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                uiState.availableTemplates.forEach { template ->
-                    FilterChip(
-                        selected = uiState.selectedTemplateId == template.id,
-                        onClick = { onEvent(EditorUiEvent.SelectTemplate(template)) },
-                        label = { Text(template.title) },
-                        modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                quickTemplates.forEach { template ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        FilterChip(
+                            selected = uiState.selectedTemplateId == template.id,
+                            onClick = { onEvent(EditorUiEvent.SelectTemplate(template)) },
+                            label = { Text(template.title) },
+                            leadingIcon = if (template.isFavorite) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = "Favorita",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            } else null,
+                            modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                        )
+                        IconButton(
+                            onClick = { onEvent(EditorUiEvent.ToggleFavoriteTemplate(template.id)) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (template.isFavorite) Icons.Default.Star else Icons.Outlined.StarOutline,
+                                contentDescription = "Alternar favorito",
+                                tint = if (template.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Dual-sided DNI PDF compilation toggle
+        if (uiState.isDualSidedMode) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.25f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Unir Anverso y Reverso en PDF",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = "PRO",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = "Genera un único archivo PDF unificado de 2 páginas con ambas caras protegidas.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = uiState.generatePdfForDni,
+                        onCheckedChange = { onEvent(EditorUiEvent.ToggleGeneratePdf(it)) }
                     )
                 }
             }
         }
 
-        // Export button
+        // Daily quota badge
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Cuota diaria de exportación:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "${uiState.dailyExportsRemaining} de ${uiState.dailyExportsLimit} restantes hoy",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (uiState.dailyExportsRemaining > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                )
+            }
+        }
+
+        // Export button (Primary)
         Button(
             onClick = {
-                if (uiState.isDualSidedMode) {
+                if (uiState.dailyExportsRemaining <= 0) {
+                    val limitMsg = if (uiState.isProUser) {
+                        "Has alcanzado el límite diario de ${uiState.dailyExportsLimit} documentos protegidos."
+                    } else {
+                        "Has alcanzado tu límite gratuito de ${uiState.dailyExportsLimit} documentos al día. Actualiza a Pro en Ajustes para exportar hasta 40 documentos diarios."
+                    }
+                    Toast.makeText(context, limitMsg, Toast.LENGTH_LONG).show()
+                    return@Button
+                }
+
+                if (uiState.isPdfMode) {
+                    val pages = uiState.pdfMaskedPagesBitmaps.ifEmpty { uiState.pdfPagesBitmaps }
+                    if (pages.isNotEmpty()) {
+                        val result = DocumentExporter.savePdfToStorage(
+                            context = context,
+                            bitmaps = pages,
+                            title = uiState.pdfDocumentName?.removeSuffix(".pdf") ?: "docmask_documento",
+                            customStorageUri = uiState.customStorageUri
+                        )
+                        if (result.isSuccess) {
+                            val uri = result.getOrNull()
+                            if (uri != null) {
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "application/pdf"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    putExtra(Intent.EXTRA_SUBJECT, "Documento PDF protegido con DocMask")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "Compartir PDF protegido").apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                })
+                            }
+                            onEvent(EditorUiEvent.ExportDocument)
+                        } else {
+                            Toast.makeText(context, "Error al procesar PDF: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                } else if (uiState.isDualSidedMode) {
                     if (!uiState.hasFront) {
                         Toast.makeText(context, "Falta adjuntar el anverso del documento", Toast.LENGTH_SHORT).show()
                         return@Button
@@ -620,19 +1347,42 @@ fun EditorControlsPane(
                     val frontExport = uiState.maskedBitmap ?: uiState.originalBitmap
                     val backExport = uiState.backMaskedBitmap ?: uiState.backOriginalBitmap
                     if (frontExport != null && backExport != null) {
-                        val result = DocumentExporter.exportAndShareBitmapsBatch(context, frontExport, backExport)
-                        if (result.isSuccess) {
-                            Toast.makeText(context, "Documentos exportados. Selecciona dónde compartirlos.", Toast.LENGTH_SHORT).show()
+                        if (uiState.generatePdfForDni) {
+                            val pdfResult = DocumentExporter.exportAndSharePdfBatch(
+                                context = context,
+                                frontBitmap = frontExport,
+                                backBitmap = backExport,
+                                customStorageUri = uiState.customStorageUri
+                            )
+                            if (pdfResult.isSuccess) {
+                                onEvent(EditorUiEvent.ExportDocument)
+                            } else {
+                                Toast.makeText(context, "Error al exportar PDF: ${pdfResult.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                            }
                         } else {
-                            Toast.makeText(context, "Error al exportar: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                            val result = DocumentExporter.exportAndShareBitmapsBatch(
+                                context = context,
+                                frontBitmap = frontExport,
+                                backBitmap = backExport,
+                                customStorageUri = uiState.customStorageUri
+                            )
+                            if (result.isSuccess) {
+                                onEvent(EditorUiEvent.ExportDocument)
+                            } else {
+                                Toast.makeText(context, "Error al exportar: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                            }
                         }
                     }
                 } else {
                     val bitmapToExport = uiState.maskedBitmap ?: uiState.originalBitmap
                     if (bitmapToExport != null) {
-                        val result = DocumentExporter.exportAndShareBitmap(context, bitmapToExport)
+                        val result = DocumentExporter.exportAndShareBitmap(
+                            context = context,
+                            bitmap = bitmapToExport,
+                            customStorageUri = uiState.customStorageUri
+                        )
                         if (result.isSuccess) {
-                            Toast.makeText(context, "Documento exportado. Selecciona dónde compartirlo.", Toast.LENGTH_SHORT).show()
+                            onEvent(EditorUiEvent.ExportDocument)
                         } else {
                             Toast.makeText(context, "Error al exportar: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                         }
@@ -640,9 +1390,10 @@ fun EditorControlsPane(
                         Toast.makeText(context, "Primero carga un documento para exportar", Toast.LENGTH_SHORT).show()
                     }
                 }
-                onEvent(EditorUiEvent.ExportDocument)
             },
-            enabled = if (uiState.isDualSidedMode) (uiState.hasFront || uiState.hasBack) else uiState.hasDocument,
+            enabled = if (uiState.isPdfMode) uiState.hasDocument
+                      else if (uiState.isDualSidedMode) (uiState.hasFront && uiState.hasBack)
+                      else uiState.hasDocument,
             modifier = Modifier
                 .fillMaxWidth()
                 .defaultMinSize(minHeight = 52.dp)
@@ -651,9 +1402,158 @@ fun EditorControlsPane(
             Icon(Icons.Default.FileDownload, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                if (uiState.isDualSidedMode) "Exportar DNI Seguro (Lote Anverso y Reverso)"
+                if (uiState.isPdfMode) "Exportar y Compartir PDF Protegido"
+                else if (uiState.isDualSidedMode && (!uiState.hasFront || !uiState.hasBack)) "Carga Anverso y Reverso para Exportar"
+                else if (uiState.isDualSidedMode && uiState.generatePdfForDni) "Exportar DNI en PDF Combinado"
+                else if (uiState.isDualSidedMode) "Exportar DNI (2 Caras)"
                 else "Exportar Documento Seguro"
             )
+        }
+
+        // Dedicated "Descargar PDF" button (Enabled when PDF or combined DNI ready)
+        val canDownloadPdf = uiState.isPdfDownloadAvailable || (uiState.isPdfMode && uiState.hasDocument) || (uiState.isDualSidedMode && uiState.hasFront && uiState.hasBack)
+        if (canDownloadPdf) {
+            OutlinedButton(
+                onClick = {
+                    if (uiState.dailyExportsRemaining <= 0) {
+                        onEvent(EditorUiEvent.DownloadPdf)
+                        return@OutlinedButton
+                    }
+
+                    val bitmapsToPdf = if (uiState.isPdfMode) {
+                        uiState.pdfMaskedPagesBitmaps.ifEmpty { uiState.pdfPagesBitmaps }
+                    } else if (uiState.isDualSidedMode) {
+                        listOfNotNull(uiState.maskedBitmap ?: uiState.originalBitmap, uiState.backMaskedBitmap ?: uiState.backOriginalBitmap)
+                    } else {
+                        listOfNotNull(uiState.maskedBitmap ?: uiState.originalBitmap)
+                    }
+
+                    if (bitmapsToPdf.isNotEmpty()) {
+                        val result = DocumentExporter.savePdfToStorage(
+                            context = context,
+                            bitmaps = bitmapsToPdf,
+                            title = if (uiState.isDualSidedMode) "docmask_dni_completo" else uiState.pdfDocumentName?.removeSuffix(".pdf") ?: "docmask_descarga",
+                            customStorageUri = uiState.customStorageUri
+                        )
+                        if (result.isSuccess) {
+                            Toast.makeText(context, "PDF guardado correctamente en la carpeta de destino.", Toast.LENGTH_LONG).show()
+                            onEvent(EditorUiEvent.DownloadPdf)
+                        } else {
+                            Toast.makeText(context, "Error al guardar PDF: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                        }
+                    } else {
+                        Toast.makeText(context, "Primero genera o procesa un documento para descargar su PDF.", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 50.dp)
+                    .testTag("button_download_pdf")
+            ) {
+                Icon(Icons.Default.PictureAsPdf, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Descargar PDF en Dispositivo")
+            }
+        }
+    }
+}
+
+/**
+ * Fullscreen original preview dialog with spring bounce animation, dark background, rounded corners,
+ * accessible 'X' button and back handler support.
+ */
+@Composable
+fun FullScreenImagePreviewDialog(
+    bitmap: Bitmap,
+    onDismiss: () -> Unit
+) {
+    var isVisible by remember { mutableStateOf(false) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        isVisible = true
+    }
+
+    val coroutineScope = rememberCoroutineScope()
+    val closeAnimated: () -> Unit = {
+        coroutineScope.launch {
+            isVisible = false
+            kotlinx.coroutines.delay(220)
+            onDismiss()
+        }
+    }
+
+    BackHandler(enabled = true) {
+        closeAnimated()
+    }
+
+    Dialog(
+        onDismissRequest = { closeAnimated() },
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.88f))
+                .clickable { closeAnimated() },
+            contentAlignment = Alignment.Center
+        ) {
+            AnimatedVisibility(
+                visible = isVisible,
+                enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
+                        scaleIn(
+                            initialScale = 0.85f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        ),
+                exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMedium)) +
+                        scaleOut(
+                            targetScale = 0.85f,
+                            animationSpec = spring(stiffness = Spring.StiffnessMedium)
+                        )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "Vista previa original en pantalla completa",
+                        modifier = Modifier
+                            .fillMaxSize(0.92f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable(enabled = false) {},
+                        contentScale = ContentScale.Fit
+                    )
+                }
+            }
+
+            // Accessible Close Button top right
+            IconButton(
+                onClick = { closeAnimated() },
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = Color.Black.copy(alpha = 0.6f),
+                    contentColor = Color.White
+                ),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 40.dp, end = 20.dp)
+                    .size(48.dp)
+                    .testTag("button_close_fullscreen_preview")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Cerrar vista previa",
+                    modifier = Modifier.size(28.dp)
+                )
+            }
         }
     }
 }

@@ -10,5 +10,6 @@ data class RedactionArea(
     val type: SensitiveFieldType,
     val boundingBox: BoundingBox,
     val detectedText: String? = null,
-    val isRedacted: Boolean = type.recommendedToRedact
+    val isRedacted: Boolean = type.recommendedToRedact,
+    val pageIndex: Int = 1
 )

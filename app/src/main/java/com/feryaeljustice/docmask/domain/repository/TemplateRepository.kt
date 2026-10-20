@@ -7,4 +7,5 @@ interface TemplateRepository {
     fun getTemplates(): Flow<List<WatermarkTemplate>>
     suspend fun saveTemplate(template: WatermarkTemplate)
     suspend fun deleteTemplate(templateId: String)
+    suspend fun toggleFavorite(templateId: String)
 }

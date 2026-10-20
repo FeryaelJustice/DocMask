@@ -7,7 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-private val Context.dataStore by preferencesDataStore(name = "docmask_preferences")
+val Context.docMaskDataStore by preferencesDataStore(name = "docmask_preferences")
 
 interface UserPreferencesRepository {
     val isBiometricEnabled: Flow<Boolean>
@@ -22,12 +22,12 @@ class UserPreferencesRepositoryImpl(
         private val KEY_BIOMETRIC_ENABLED = booleanPreferencesKey("key_biometric_enabled")
     }
 
-    override val isBiometricEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+    override val isBiometricEnabled: Flow<Boolean> = context.docMaskDataStore.data.map { preferences ->
         preferences[KEY_BIOMETRIC_ENABLED] ?: false
     }
 
     override suspend fun setBiometricEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
+        context.docMaskDataStore.edit { preferences ->
             preferences[KEY_BIOMETRIC_ENABLED] = enabled
         }
     }
