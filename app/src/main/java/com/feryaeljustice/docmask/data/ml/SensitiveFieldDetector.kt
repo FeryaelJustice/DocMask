@@ -2,6 +2,7 @@ package com.feryaeljustice.docmask.data.ml
 
 import android.graphics.Rect
 import com.feryaeljustice.docmask.core.model.BoundingBox
+import com.feryaeljustice.docmask.core.model.toBoundingBox
 import com.feryaeljustice.docmask.core.model.RedactionArea
 import com.feryaeljustice.docmask.core.model.SensitiveFieldType
 import com.google.mlkit.vision.text.Text
@@ -92,14 +93,5 @@ class SensitiveFieldDetector {
         }
 
         return detectedAreas
-    }
-
-    private fun Rect.toBoundingBox(): BoundingBox {
-        return BoundingBox(
-            left = this.left.toFloat(),
-            top = this.top.toFloat(),
-            right = this.right.toFloat(),
-            bottom = this.bottom.toFloat()
-        )
     }
 }

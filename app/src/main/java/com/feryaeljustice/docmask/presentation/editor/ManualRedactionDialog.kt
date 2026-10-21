@@ -51,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -66,6 +67,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.feryaeljustice.docmask.R
 import com.feryaeljustice.docmask.core.model.BoundingBox
 import com.feryaeljustice.docmask.core.model.DocumentSide
 import com.feryaeljustice.docmask.core.model.RedactionArea
@@ -75,6 +77,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
+import androidx.core.graphics.scale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,7 +86,8 @@ fun ManualRedactionDialog(
     existingRegions: List<RedactionArea>,
     side: DocumentSide,
     onDismiss: () -> Unit,
-    onSave: (List<RedactionArea>) -> Unit
+    onSave: (List<RedactionArea>) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var manualRegions by remember {
         mutableStateOf(existingRegions.filter { it.type == SensitiveFieldType.CUSTOM_SELECTION })
@@ -105,7 +109,7 @@ fun ManualRedactionDialog(
             val scaleFactor = min(maxDim / originalBitmap.width, maxDim / originalBitmap.height).coerceAtMost(1f)
             val thumbW = (originalBitmap.width * scaleFactor).toInt().coerceAtLeast(1)
             val thumbH = (originalBitmap.height * scaleFactor).toInt().coerceAtLeast(1)
-            val thumb = Bitmap.createScaledBitmap(originalBitmap, thumbW, thumbH, true)
+            val thumb = originalBitmap.scale(thumbW, thumbH)
 
             val activeRegions = (aiRegions.filter { it.isRedacted } + manualRegions)
             val scaledBoxes = activeRegions.map { region ->
@@ -125,7 +129,7 @@ fun ManualRedactionDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxSize()
                 .padding(12.dp),
             shape = RoundedCornerShape(20.dp),
@@ -154,19 +158,19 @@ fun ManualRedactionDialog(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Editor de Zonas Manuales",
+                                text = stringResource(R.string.manual_dialog_title),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                         Text(
-                            text = "Arrastra el dedo sobre la imagen para marcar rectángulos que desees pixelar.",
+                            text = stringResource(R.string.manual_dialog_subtitle),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Cerrar")
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.common_close))
                     }
                 }
 
@@ -352,7 +356,7 @@ fun ManualRedactionDialog(
                         ) {
                             Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Deshacer")
+                            Text(stringResource(R.string.manual_dialog_undo))
                         }
 
                         OutlinedButton(
@@ -362,7 +366,7 @@ fun ManualRedactionDialog(
                         ) {
                             Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Limpiar")
+                            Text(stringResource(R.string.manual_dialog_clear))
                         }
                     }
 
@@ -371,7 +375,7 @@ fun ManualRedactionDialog(
                         color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
                     ) {
                         Text(
-                            text = "${manualRegions.size} manuales",
+                            text = stringResource(R.string.manual_dialog_regions_count, manualRegions.size),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -409,7 +413,7 @@ fun ManualRedactionDialog(
                         if (previewThumbnail != null) {
                             Image(
                                 bitmap = previewThumbnail!!.asImageBitmap(),
-                                contentDescription = "Vista previa en miniatura (mantener pulsado para pantalla completa)",
+                                contentDescription = stringResource(R.string.editor_manual_quick_preview_content_description),
                                 modifier = Modifier
                                     .size(width = 110.dp, height = 75.dp)
                                     .clip(RoundedCornerShape(8.dp))
@@ -432,13 +436,13 @@ fun ManualRedactionDialog(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Vista previa rápida",
+                                text = stringResource(R.string.editor_manual_quick_preview_title),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Mantén pulsada la miniatura para ver el resultado a pantalla completa.",
+                                text = stringResource(R.string.editor_manual_quick_preview_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -466,7 +470,7 @@ fun ManualRedactionDialog(
                             .weight(1f)
                             .defaultMinSize(minHeight = 48.dp)
                     ) {
-                        Text("Cancelar")
+                        Text(stringResource(R.string.common_cancel))
                     }
 
                     Button(
@@ -476,7 +480,7 @@ fun ManualRedactionDialog(
                             .defaultMinSize(minHeight = 48.dp)
                             .testTag("button_save_manual_regions")
                     ) {
-                        Text("Guardar y Aplicar")
+                        Text(stringResource(R.string.manual_dialog_save))
                     }
                 }
             }

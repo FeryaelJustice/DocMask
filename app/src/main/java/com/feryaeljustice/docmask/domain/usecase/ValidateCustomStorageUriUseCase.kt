@@ -2,6 +2,7 @@ package com.feryaeljustice.docmask.domain.usecase
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 
 class ValidateCustomStorageUriUseCase(
@@ -13,7 +14,7 @@ class ValidateCustomStorageUriUseCase(
             return Result.success("Carpeta de la aplicación (Predeterminada)")
         }
         return try {
-            val uri = Uri.parse(uriString)
+            val uri = uriString.toUri()
             val documentFile = DocumentFile.fromTreeUri(context, uri)
             if (documentFile == null || !documentFile.exists()) {
                 Result.failure(IllegalArgumentException("La carpeta seleccionada no existe o no es accesible."))

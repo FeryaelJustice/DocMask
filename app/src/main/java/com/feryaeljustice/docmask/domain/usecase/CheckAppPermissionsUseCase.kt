@@ -1,6 +1,7 @@
 package com.feryaeljustice.docmask.domain.usecase
 
 import android.content.Context
+import com.feryaeljustice.docmask.R
 import com.feryaeljustice.docmask.core.model.AppPermissionStatus
 import com.feryaeljustice.docmask.core.model.AppPermissionType
 import com.feryaeljustice.docmask.core.model.PermissionItemState
@@ -15,25 +16,25 @@ class CheckAppPermissionsUseCase {
         return listOf(
             PermissionItemState(
                 type = AppPermissionType.CAMERA,
-                title = "Cámara",
-                description = "Permite tomar fotos de tus documentos de identidad de forma directa sin almacenar fotos sin anonimizar.",
-                purposeRationale = "La cámara solo se utiliza cuando decides tomar una foto directamente desde la app. La imagen se procesa 100% en local y nunca se sube a internet.",
+                title = context.getString(R.string.settings_permission_camera_title),
+                description = context.getString(R.string.settings_permission_camera_desc),
+                purposeRationale = context.getString(R.string.settings_permission_camera_rationale),
                 status = cameraStatus,
                 isSafAccess = false
             ),
             PermissionItemState(
                 type = AppPermissionType.GALLERY_MEDIA,
-                title = "Galería y Multimedia",
-                description = "Permite acceder a tus fotos para seleccionar el anverso o reverso del documento. Admite acceso a fotos seleccionadas o a toda la biblioteca.",
-                purposeRationale = "El acceso a la galería te permite importar tu DNI o pasaporte desde tus fotos. Puedes elegir si permites el acceso solo a ciertas fotos o a todas. DocMask procesa la foto 100% en tu dispositivo y nunca la comparte.",
+                title = context.getString(R.string.settings_permission_gallery_title),
+                description = context.getString(R.string.settings_permission_gallery_desc),
+                purposeRationale = context.getString(R.string.settings_permission_gallery_rationale),
                 status = mediaStatus,
                 isSafAccess = false
             ),
             PermissionItemState(
                 type = AppPermissionType.DOCUMENTS_SAF,
-                title = "Archivos y Documentos (SAF)",
-                description = "Acceso seguro a través del Selector del Sistema (Storage Access Framework) para importar PDFs y guardar en carpetas personalizadas.",
-                purposeRationale = "DocMask no requiere permisos invasivos de gestión total de archivos en tu móvil. Cumple con las políticas de privacidad de Google Play permitiéndote elegir únicamente los PDFs que deseas anonimizar.",
+                title = context.getString(R.string.settings_permission_saf_title),
+                description = context.getString(R.string.settings_permission_saf_desc),
+                purposeRationale = context.getString(R.string.settings_permission_saf_rationale),
                 status = AppPermissionStatus.GRANTED,
                 isSafAccess = true
             )

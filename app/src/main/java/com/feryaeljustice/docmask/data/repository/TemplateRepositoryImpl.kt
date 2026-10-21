@@ -1,5 +1,7 @@
 package com.feryaeljustice.docmask.data.repository
 
+import android.content.Context
+import com.feryaeljustice.docmask.R
 import com.feryaeljustice.docmask.core.model.WatermarkConfig
 import com.feryaeljustice.docmask.domain.model.WatermarkTemplate
 import com.feryaeljustice.docmask.domain.repository.TemplateRepository
@@ -8,14 +10,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-class TemplateRepositoryImpl : TemplateRepository {
+class TemplateRepositoryImpl(
+    private val context: Context? = null
+) : TemplateRepository {
 
-    private val defaultTemplates = listOf(
+    private fun createDefaultTemplates(): List<WatermarkTemplate> = listOf(
         WatermarkTemplate(
             id = "template-rental",
-            title = "Alquiler de Vivienda",
+            title = context?.getString(R.string.template_rental_title) ?: "Alquiler de Vivienda",
             config = WatermarkConfig(
-                purposeText = "Copia para alquiler de vivienda",
+                purposeText = context?.getString(R.string.template_rental_purpose) ?: "Copia para alquiler de vivienda",
                 includeDate = true,
                 opacity = 0.35f
             ),
@@ -24,9 +28,9 @@ class TemplateRepositoryImpl : TemplateRepository {
         ),
         WatermarkTemplate(
             id = "template-hotel",
-            title = "Reserva Hotelera",
+            title = context?.getString(R.string.template_hotel_title) ?: "Reserva Hotelera",
             config = WatermarkConfig(
-                purposeText = "Copia exclusiva para reserva de hotel",
+                purposeText = context?.getString(R.string.template_hotel_purpose) ?: "Copia exclusiva para reserva de hotel",
                 includeDate = true,
                 opacity = 0.35f
             ),
@@ -35,9 +39,9 @@ class TemplateRepositoryImpl : TemplateRepository {
         ),
         WatermarkTemplate(
             id = "template-employment",
-            title = "Trámite Laboral",
+            title = context?.getString(R.string.template_employment_title) ?: "Trámite Laboral",
             config = WatermarkConfig(
-                purposeText = "Copia para proceso de contratación",
+                purposeText = context?.getString(R.string.template_employment_purpose) ?: "Copia para proceso de contratación",
                 includeDate = true,
                 opacity = 0.35f
             ),
@@ -46,9 +50,9 @@ class TemplateRepositoryImpl : TemplateRepository {
         ),
         WatermarkTemplate(
             id = "template-banking",
-            title = "Gestión Bancaria",
+            title = context?.getString(R.string.template_banking_title) ?: "Gestión Bancaria",
             config = WatermarkConfig(
-                purposeText = "Copia exclusiva para trámite bancario",
+                purposeText = context?.getString(R.string.template_banking_purpose) ?: "Copia exclusiva para trámite bancario",
                 includeDate = true,
                 opacity = 0.35f
             ),
@@ -57,7 +61,7 @@ class TemplateRepositoryImpl : TemplateRepository {
         )
     )
 
-    private val _templates = MutableStateFlow(defaultTemplates)
+    private val _templates = MutableStateFlow(createDefaultTemplates())
 
     override fun getTemplates(): Flow<List<WatermarkTemplate>> = _templates.asStateFlow()
 

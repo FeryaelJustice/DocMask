@@ -2,7 +2,6 @@ package com.feryaeljustice.docmask.presentation.pro
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -60,11 +59,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import com.feryaeljustice.docmask.BuildConfig
+import com.feryaeljustice.docmask.R
 import com.feryaeljustice.docmask.presentation.editor.EditorUiEvent
 import com.feryaeljustice.docmask.presentation.editor.EditorViewModel
 
@@ -72,16 +75,19 @@ import com.feryaeljustice.docmask.presentation.editor.EditorViewModel
 @Composable
 fun ProScreen(
     viewModel: EditorViewModel,
+    modifier: Modifier = Modifier,
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val resources = LocalResources.current
     val activity = context as? Activity
 
     Scaffold(
+        modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("DocMask Pro") },
+                title = { Text(stringResource(R.string.pro_title)) },
                 navigationIcon = {
                     IconButton(
                         onClick = onNavigateBack,
@@ -89,7 +95,7 @@ fun ProScreen(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver"
+                            contentDescription = stringResource(R.string.common_close)
                         )
                     }
                 }
@@ -140,7 +146,7 @@ fun ProScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "DocMask Pro",
+                        text = stringResource(R.string.pro_title),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -149,7 +155,7 @@ fun ProScreen(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "Proteccion profesional sin limites y 100% offline",
+                        text = stringResource(R.string.pro_subtitle),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -174,7 +180,7 @@ fun ProScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "DocMask Pro Activo",
+                                    text = stringResource(R.string.pro_badge_active),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Bold
@@ -200,7 +206,7 @@ fun ProScreen(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Text(
-                        text = "Ventajas incluidas en tu plan",
+                        text = stringResource(R.string.pro_subtitle),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -209,38 +215,38 @@ fun ProScreen(
 
                     ProFeatureRow(
                         icon = Icons.Default.Description,
-                        title = "40 documentos diarios",
-                        description = "Supera el limite de 3 documentos diarios para tramitar alquileres, hoteles o tramites laborales."
+                        title = stringResource(R.string.pro_feature_quota_title),
+                        description = stringResource(R.string.pro_feature_quota_desc)
                     )
 
                     ProFeatureRow(
                         icon = Icons.Default.PictureAsPdf,
-                        title = "DNI combinado en un unico PDF",
-                        description = "Une anverso y reverso automaticamente en un unico archivo PDF protegido de dos paginas."
+                        title = stringResource(R.string.pro_feature_dual_pdf_title),
+                        description = stringResource(R.string.pro_feature_dual_pdf_desc)
                     )
 
                     ProFeatureRow(
                         icon = Icons.Default.Security,
-                        title = "Hasta 15 plantillas personalizadas",
-                        description = "Guarda motivos frecuentes sin la restriccion de 4 plantillas de la version gratuita."
+                        title = stringResource(R.string.pro_feature_templates_title),
+                        description = stringResource(R.string.pro_feature_templates_desc)
                     )
 
                     ProFeatureRow(
                         icon = Icons.Default.Draw,
-                        title = "Zonas manuales PRO",
-                        description = "Dibuja y marca tus propias areas de pixelado personalizadas sobre cualquier documento o campo no detectado."
+                        title = stringResource(R.string.pro_feature_manual_redaction_title),
+                        description = stringResource(R.string.pro_feature_manual_redaction_desc)
                     )
 
                     ProFeatureRow(
                         icon = Icons.Default.Fingerprint,
-                        title = "Bloqueo biometrico avanzado",
-                        description = "Protege el acceso a DocMask con tu huella dactilar, reconocimiento facial o codigo PIN seguro."
+                        title = stringResource(R.string.settings_biometric_title),
+                        description = stringResource(R.string.settings_biometric_desc)
                     )
 
                     ProFeatureRow(
                         icon = Icons.Default.VerifiedUser,
-                        title = "Garantia Zero-Network (100% Offline)",
-                        description = "Privacidad radical sin conexiones a internet, sin anuncios y sin rastreo de tus datos."
+                        title = stringResource(R.string.pro_feature_offline_title),
+                        description = stringResource(R.string.pro_feature_offline_desc)
                     )
                 }
             }
@@ -266,7 +272,7 @@ fun ProScreen(
                                 if (activity != null) {
                                     viewModel.onEvent(EditorUiEvent.PurchasePro(activity))
                                 } else {
-                                    Toast.makeText(context, "No se pudo iniciar Google Play Billing", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, resources.getString(R.string.pro_billing_init_error), Toast.LENGTH_SHORT).show()
                                 }
                             },
                             enabled = !uiState.isLoading,
@@ -285,12 +291,12 @@ fun ProScreen(
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Conectando con Google Play...")
+                                Text(stringResource(R.string.common_loading))
                             } else {
                                 Icon(Icons.Default.WorkspacePremium, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Suscribirme a DocMask Pro",
+                                    text = stringResource(R.string.pro_purchase_button, "1,99 €"),
                                     style = MaterialTheme.typography.titleMedium
                                 )
                             }
@@ -308,11 +314,11 @@ fun ProScreen(
                         ) {
                             Icon(Icons.Default.Restore, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Recuperar compra previa")
+                            Text(stringResource(R.string.pro_restore_button))
                         }
 
                         Text(
-                            text = "Pago procesado a traves del servicio seguro local de Google Play Store. Las compras se conservan incluso si reinstalas la app o cambias de dispositivo.",
+                            text = stringResource(R.string.settings_zero_network_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -322,12 +328,13 @@ fun ProScreen(
                         Button(
                             onClick = {
                                 val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    data = Uri.parse("https://play.google.com/store/account/subscriptions")
+                                    data =
+                                        "https://play.google.com/store/account/subscriptions".toUri()
                                 }
                                 try {
                                     context.startActivity(intent)
                                 } catch (_: Exception) {
-                                    Toast.makeText(context, "Abre Google Play Store para gestionar tus suscripciones.", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, resources.getString(R.string.pro_open_play_store_hint), Toast.LENGTH_LONG).show()
                                 }
                             },
                             modifier = Modifier
@@ -338,7 +345,7 @@ fun ProScreen(
                             Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Gestionar suscripcion en Google Play",
+                                text = stringResource(R.string.pro_manage_subscription),
                                 style = MaterialTheme.typography.titleMedium
                             )
                         }
@@ -354,16 +361,8 @@ fun ProScreen(
                         ) {
                             Icon(Icons.Default.Restore, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Comprobar estado de suscripcion")
+                            Text(stringResource(R.string.pro_restore_button))
                         }
-
-                        Text(
-                            text = "Google Play administra directamente los ciclos de facturacion, renovaciones y cancelaciones. Puedes cancelar tu suscripcion en cualquier momento desde los ajustes de Google Play sin penalizacion.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        )
                     }
                 }
             }
@@ -386,14 +385,9 @@ fun ProScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Modo Pro (Desarrollo)",
+                                text = stringResource(R.string.pro_debug_switch),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                            Text(
-                                text = "Interruptor de depuracion para probar limites y funciones Pro",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
                             )
                         }
                         Switch(
@@ -412,10 +406,11 @@ fun ProScreen(
 private fun ProFeatureRow(
     icon: ImageVector,
     title: String,
-    description: String
+    description: String,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top
     ) {
         Surface(

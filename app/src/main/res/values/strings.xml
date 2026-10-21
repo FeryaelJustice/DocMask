@@ -1,3 +1,332 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- App & General -->
     <string name="app_name">DocMask</string>
+    <string name="nav_editor">Editor</string>
+    <string name="nav_templates">Plantillas</string>
+    <string name="nav_settings">Ajustes</string>
+    <string name="nav_pro">DocMask Pro</string>
+
+    <string name="common_cancel">Cancelar</string>
+    <string name="common_accept">Aceptar</string>
+    <string name="common_save">Guardar</string>
+    <string name="common_delete">Eliminar</string>
+    <string name="common_close">Cerrar</string>
+    <string name="common_apply">Aplicar</string>
+    <string name="common_understood">Entendido</string>
+    <string name="common_retry">Reintentar</string>
+    <string name="common_error">Aviso de Error</string>
+    <string name="common_success">Operación Exitosa</string>
+    <string name="common_loading">Cargando...</string>
+    <string name="common_pro_badge">PRO</string>
+
+    <!-- Tipos de Campos Sensibles -->
+    <string name="sensitive_field_support_number">Número de Soporte / IDESP</string>
+    <string name="sensitive_field_can_code">Código CAN (Card Access Number)</string>
+    <string name="sensitive_field_signature">Firma Manuscrita</string>
+    <string name="sensitive_field_face">Fotografía de Rostro</string>
+    <string name="sensitive_field_date_of_birth">Fecha de Nacimiento</string>
+    <string name="sensitive_field_mrz">Zona MRZ (Lectura Mecánica)</string>
+    <string name="sensitive_field_custom_selection">Selección Manual</string>
+    <string name="sensitive_field_face_detected">Rostro detectado</string>
+
+    <!-- Diálogos de permisos y origen de imagen -->
+    <string name="editor_photo_source_title">Seleccionar origen de la imagen</string>
+    <string name="editor_photo_source_camera">Hacer foto con la cámara</string>
+    <string name="editor_photo_source_gallery">Elegir de la galería</string>
+    <string name="dialog_media_permission_title">Acceso a Fotos y Galería</string>
+    <string name="dialog_media_permission_message">DocMask necesita acceder a tus imágenes para cargar el documento a anonimizar. Puedes conceder acceso a ciertas fotos seleccionadas o a toda tu galería. El procesamiento es 100% local.</string>
+    <string name="dialog_media_denied_title">Permiso de Fotos Bloqueado</string>
+    <string name="dialog_media_denied_message">El acceso a la galería está bloqueado en Android. Para seleccionar documentos desde tus fotos, concede el permiso en Ajustes de la aplicación.</string>
+    <string name="dialog_camera_permission_title">Permiso de Cámara Requerido</string>
+    <string name="dialog_camera_permission_message">DocMask necesita acceder a la cámara únicamente para fotografiar tu documento de identidad y anonimizarlo en tu dispositivo. La imagen no se sube a internet ni se comparte con nadie.</string>
+    <string name="dialog_camera_denied_title">Permiso Bloqueado</string>
+    <string name="dialog_camera_denied_message">El permiso de cámara está deshabilitado en Android. Para tomar fotos directamente desde la app, habilítalo en la sección de Permisos de la configuración del sistema.</string>
+    <string name="dialog_open_settings">Abrir Ajustes</string>
+    <string name="dialog_grant_permission">Conceder Permiso</string>
+    <string name="editor_permission_camera_denied">Permiso de cámara no concedido.</string>
+    <string name="editor_permission_gallery_denied">Permiso de galería no concedido.</string>
+    <string name="editor_error_camera_launch">No se pudo iniciar la cámara: %s</string>
+
+    <!-- Editor - Textos adicionales y estados -->
+    <string name="editor_loading_camera">Procesando foto de cámara...</string>
+    <string name="editor_loading_image">Cargando imagen...</string>
+    <string name="editor_loading_pdf">Cargando documento PDF...</string>
+    <string name="editor_loading_default">Procesando documento...</string>
+    <string name="editor_error_camera_process">Error al procesar foto de cámara: %s</string>
+    <string name="editor_error_image_load">Error al cargar imagen: %s</string>
+    <string name="editor_error_pdf_invalid">El documento PDF no contiene páginas válidas.</string>
+    <string name="editor_error_pdf_import">Error al importar PDF: %s</string>
+    <string name="editor_offline_badge" formatted="false">100% Offline</string>
+    <string name="editor_offline_secure_hint" formatted="false">Procesamiento 100% offline y seguro</string>
+    <string name="editor_loaded_badge">Cargado</string>
+    <string name="editor_pdf_change">Cambiar Documento PDF</string>
+    <string name="editor_pdf_load_button">Cargar Documento PDF</string>
+    <string name="editor_pdf_summary">%1$d páginas • %2$d campos de riesgo identificados</string>
+    <string name="editor_pdf_placeholder_title">Selecciona un documento PDF para proteger</string>
+    <string name="editor_pdf_placeholder_subtitle" formatted="false">Procesamiento 100% offline página por página</string>
+    <string name="editor_content_desc_protected">Documento protegido</string>
+    <string name="editor_content_desc_protected_side">Documento protegido (%s)</string>
+    <string name="editor_load_side">Cargar %s</string>
+    <string name="editor_tap_to_attach_side">Pulsa para adjuntar la foto del %s</string>
+    <string name="editor_thumb_original_desc">Miniatura original</string>
+    <string name="editor_thumb_original_title">Original sin efecto</string>
+    <string name="editor_thumb_original_subtitle">Toca para ampliar</string>
+    <string name="editor_manual_zones_pro">Zonas manuales PRO</string>
+    <string name="editor_change_side">Cambiar %s</string>
+    <string name="editor_change_document">Cambiar Documento</string>
+    <string name="editor_fields_identified_pdf">Campos Identificados en PDF</string>
+    <string name="editor_fields_side">Datos en %s</string>
+    <string name="editor_fields_detected">Datos Sensibles Detectados</string>
+    <string name="editor_fields_selected_count">%1$d de %2$d campos seleccionados para pixelar</string>
+    <string name="editor_aepd_button">AEPD</string>
+    <string name="editor_uncheck_button">Desmarcar</string>
+    <string name="editor_pixel_intensity_title">Intensidad de Pixelado / Blur</string>
+    <string name="editor_pixel_intensity_subtitle">Ajuste uniforme para todas las áreas sensibles</string>
+    <string name="editor_grayscale_switch_subtitle">Recomendado por la AEPD contra fraudes</string>
+    <string name="editor_watermark_include_date_title">Incluir fecha de hoy en la marca</string>
+    <string name="editor_watermark_include_date_subtitle">Añade automáticamente el sufijo de fecha (- dd/MM/yyyy)</string>
+    <string name="editor_watermark_purpose_label_input">Finalidad del documento</string>
+    <string name="editor_watermark_purpose_placeholder_input">Ej. Copia para alquiler de vivienda</string>
+    <string name="editor_watermark_opacity_label">Opacidad de la marca</string>
+    <string name="editor_templates_favorites_header">Plantillas Rápidas (Favoritas)</string>
+    <string name="editor_templates_default_hint">Predeterminadas (Marca ⭐ en Plantillas)</string>
+    <string name="editor_favorite_template_desc">Favorita</string>
+    <string name="editor_toggle_favorite_desc">Alternar favorito</string>
+    <string name="editor_pdf_single_title">Generar como PDF</string>
+    <string name="editor_pdf_single_desc">Genera un archivo PDF seguro de 1 página con el documento protegido.</string>
+    <string name="editor_pdf_dual_title">Unir Anverso y Reverso en PDF</string>
+    <string name="editor_pdf_dual_desc">Genera un único archivo PDF unificado de 2 páginas con ambas caras protegidas.</string>
+    <string name="editor_daily_quota_title">Cuota diaria de exportación:</string>
+    <string name="editor_daily_quota_remaining">%1$d de %2$d restantes hoy</string>
+    <string name="editor_daily_quota_limit_pro">Has alcanzado el límite diario de %d documentos protegidos.</string>
+    <string name="editor_daily_quota_limit_free">Has alcanzado tu límite gratuito de %d documentos al día. Actualiza a Pro en Ajustes para exportar hasta 40 documentos diarios.</string>
+    <string name="editor_missing_front">Falta adjuntar el anverso del documento</string>
+    <string name="editor_missing_back">Falta adjuntar el reverso del documento</string>
+    <string name="editor_missing_document">Primero carga un documento para exportar</string>
+    <string name="editor_error_export">Error al exportar: %s</string>
+    <string name="editor_error_export_unexpected">Error inesperado al exportar: %s</string>
+    <string name="editor_fullscreen_preview_desc">Vista previa original en pantalla completa</string>
+    <string name="editor_fullscreen_preview_close">Cerrar vista previa</string>
+
+    <!-- Editor - Modos de Entrada y Selección -->
+    <string name="editor_mode_single">1 Cara</string>
+    <string name="editor_mode_dual">2 Caras</string>
+    <string name="editor_mode_pdf">Doc. PDF</string>
+    <string name="editor_side_front">Anverso</string>
+    <string name="editor_side_back">Reverso</string>
+    <string name="editor_front_card">Anverso del DNI</string>
+    <string name="editor_back_card">Reverso del DNI</string>
+    <string name="editor_tap_to_capture_front">Toca para capturar o seleccionar el anverso</string>
+    <string name="editor_tap_to_capture_back">Toca para capturar o seleccionar el reverso</string>
+    <string name="editor_select_document_placeholder">Selecciona o captura un documento para comenzar</string>
+    <string name="editor_camera_button">Cámara</string>
+    <string name="editor_gallery_button">Galería</string>
+    <string name="editor_change_image">Cambiar imagen</string>
+    <string name="editor_recrop_image">Recortar imagen</string>
+    <string name="editor_clear_all">Limpiar todo</string>
+
+    <!-- Editor - Controles de Protección y AEPD -->
+    <string name="editor_aepd_recommendations">Recomendaciones AEPD</string>
+    <string name="editor_aepd_tooltip">Aplica automáticamente el pixelado de los campos clave según la Agencia Española de Protección de Datos.</string>
+    <string name="editor_pixelate_all">Pixelar Todo</string>
+    <string name="editor_uncheck_all">Desmarcar Todo</string>
+    <string name="editor_grayscale_title">Convertir a escala de grises</string>
+    <string name="editor_grayscale_subtitle">Evita copias fraudulentas o duplicados a color</string>
+    <string name="editor_pixel_intensity">Intensidad de Pixelado</string>
+    <string name="editor_identified_fields">Campos Identificados (%d)</string>
+    <string name="editor_no_sensitive_fields_detected">No se detectaron campos sensibles automáticamente. Puedes añadirlos con el pincel manual.</string>
+    <string name="editor_manual_redaction">Pincel Manual</string>
+    <string name="editor_manual_redaction_subtitle">Selecciona manualmente áreas rectangulares a ocultar</string>
+    <string name="editor_manual_quick_preview_title">Vista previa rápida</string>
+    <string name="editor_manual_quick_preview_desc">Mantén pulsada la miniatura para ver el resultado a pantalla completa.</string>
+    <string name="editor_manual_quick_preview_content_description">Vista previa en miniatura (mantener pulsado para pantalla completa)</string>
+
+    <!-- Editor - Marca de Agua y Plantillas -->
+    <string name="editor_watermark_title">Marca de Agua Protectora</string>
+    <string name="editor_watermark_purpose_label">Propósito de la copia</string>
+    <string name="editor_watermark_purpose_placeholder">Ej. Copia para alquiler vivienda...</string>
+    <string name="editor_watermark_include_date">Incluir fecha actual automáticamente</string>
+    <string name="editor_watermark_opacity">Opacidad de la marca de agua: %d%%</string>
+    <string name="editor_watermark_templates_header">Plantillas Rápidas</string>
+    <string name="editor_save_template">Guardar como plantilla</string>
+    <string name="editor_save_template_title">Guardar Plantilla</string>
+    <string name="editor_template_name_label">Nombre de la plantilla</string>
+    <string name="editor_template_name_placeholder">Ej. Reserva Hotel...</string>
+
+    <!-- Editor - Opciones PDF y Exportación -->
+    <string name="editor_pdf_dual_switch">Unir anverso y reverso en un único PDF (Pro)</string>
+    <string name="editor_pdf_dual_switch_desc">Genera un documento PDF protegido de 2 páginas</string>
+    <string name="editor_pdf_single_switch">Generar como PDF (Pro)</string>
+    <string name="editor_pdf_single_switch_desc">Exporta el documento protegido en formato PDF en lugar de imagen</string>
+    <string name="editor_export_single">Exportar imagen de forma segura</string>
+    <string name="editor_export_single_pdf">Exportar PDF de forma segura</string>
+    <string name="editor_export_dni_images">Exportar DNI (2 imágenes)</string>
+    <string name="editor_export_dni_pdf">Exportar DNI en PDF único</string>
+    <string name="editor_export_pdf_doc">Exportar documento seguro</string>
+    <string name="editor_daily_quota_indicator">%1$d/%2$d documentos exportados hoy</string>
+    <string name="editor_daily_quota_warning">Has alcanzado el límite diario de %d documentos.</string>
+    <string name="editor_daily_quota_upgrade">Mejora a DocMask Pro para obtener hasta 40 documentos al día.</string>
+    <string name="editor_daily_quota_tomorrow">Vuelve mañana.</string>
+    <string name="editor_exporting_loading">Exportando y preparando documento seguro...</string>
+    <string name="editor_masking_calculating">Calculando máscaras de protección...</string>
+
+    <!-- Recorte de Imagen (Crop Dialog) -->
+    <string name="crop_dialog_title">Ajustar y Recortar Documento</string>
+    <string name="crop_dialog_instructions">Arrastra los bordes de la cuadrícula para encuadrar exclusivamente el documento y eliminar el fondo.</string>
+    <string name="crop_dialog_cancel">Cancelar</string>
+    <string name="crop_dialog_apply">Aplicar Recorte</string>
+
+    <!-- Redacción Manual (Manual Redaction Dialog) -->
+    <string name="manual_dialog_title">Pincel Manual de Pixelado</string>
+    <string name="manual_dialog_subtitle">Arrastra sobre la imagen para seleccionar áreas que quieras pixelar</string>
+    <string name="manual_dialog_undo">Deshacer</string>
+    <string name="manual_dialog_clear">Borrar selección manual</string>
+    <string name="manual_dialog_save">Aplicar Pixelado</string>
+    <string name="manual_dialog_regions_count">%d áreas seleccionadas</string>
+
+    <!-- Pantalla de Plantillas -->
+    <string name="templates_title">Plantillas de Marca de Agua</string>
+    <string name="templates_edit_title">Editar Plantilla</string>
+    <string name="templates_subtitle">Configuraciones predefinidas para trámites habituales</string>
+    <string name="templates_create_new">Nueva Plantilla</string>
+    <string name="templates_filter_all">Todas</string>
+    <string name="templates_filter_favorites">Favoritas</string>
+    <string name="templates_filter_custom">Personalizadas</string>
+    <string name="templates_default_badge">Predeterminada</string>
+    <string name="templates_badge_opacity">Opacidad: %d%%</string>
+    <string name="templates_badge_with_date">Con fecha</string>
+    <string name="templates_pro_limit_reached">Límite de plantillas alcanzado (%1$d/%2$d). Mejora a Pro para guardar hasta 15 plantillas.</string>
+    <string name="templates_empty_title">No hay plantillas disponibles</string>
+    <string name="templates_empty_desc">Crea una nueva plantilla para agilizar la protección de tus documentos.</string>
+    <string name="templates_delete_confirm_title">¿Eliminar plantilla?</string>
+    <string name="templates_delete_confirm_message">¿Estás seguro de que deseas eliminar esta plantilla personalizada? Esta acción no se puede deshacer.</string>
+
+    <!-- Pantalla de Ajustes -->
+    <string name="settings_title">Ajustes y Privacidad</string>
+    <string name="settings_info_button_content_description">Información de la aplicación</string>
+    <string name="settings_open_saf_warning">Atención</string>
+    <string name="settings_open_saf_button">Abrir ajustes</string>
+    <string name="settings_security_section">Seguridad y Acceso</string>
+    <string name="settings_biometric_title">Bloqueo Biométrico</string>
+    <string name="settings_biometric_desc">Solicitar huella dactilar, rostro o PIN al abrir DocMask.</string>
+    <string name="settings_biometric_not_available">No hay huella, rostro ni PIN configurado en este dispositivo</string>
+    <string name="settings_biometric_pro_exclusive">El bloqueo biométrico es exclusivo de DocMask Pro</string>
+    <string name="settings_biometric_enabled">Bloqueo biométrico activado</string>
+    <string name="settings_biometric_disabled">Bloqueo biométrico desactivado</string>
+    <string name="settings_storage_section">Carpeta de Guardado (Almacenamiento)</string>
+    <string name="settings_storage_folder_title">Carpeta de Guardado (Almacenamiento)</string>
+    <string name="settings_storage_desc">Indica la carpeta de tu dispositivo donde se descargarán y guardarán tus fotos y documentos protegidos.</string>
+    <string name="settings_storage_change_folder">Cambiar Carpeta</string>
+    <string name="settings_storage_open_folder">Abrir Carpeta</string>
+    <string name="settings_storage_reset_folder">Restablecer</string>
+    <string name="settings_storage_default_folder">Carpeta actual: Almacenamiento privado de la app (Predeterminado)</string>
+    <string name="settings_storage_current_folder">Carpeta actual: %s</string>
+    <string name="settings_storage_custom_folder">Carpeta personalizada configurada</string>
+    <string name="settings_storage_configured_success">Carpeta de guardado configurada correctamente.</string>
+    <string name="settings_storage_no_write_permission">No se otorgaron permisos de escritura. Por favor selecciona otra carpeta.</string>
+    <string name="settings_storage_config_error">Error al configurar permisos de carpeta: %s</string>
+    <string name="settings_storage_reset_success">Se restableció a la carpeta predeterminada.</string>
+    <string name="settings_storage_open_error">No se pudo abrir el explorador de archivos: %s</string>
+    <string name="settings_cache_title">Almacenamiento Temporal y Caché</string>
+    <string name="settings_cache_desc">Tienes tus generaciones pasadas temporalmente en caché en la carpeta de la aplicación para poder compartirlas. Puedes vaciarlas en cualquier momento para liberar espacio, ya que tus documentos guardados se conservan permanentemente en tu carpeta de destino configurada.</string>
+    <string name="settings_cache_usage">Espacio ocupado en caché: %1$d archivo(s) (%2$s)</string>
+    <string name="settings_cache_clear_button">Vaciar Caché Temporal</string>
+    <string name="settings_cache_cleared">Se eliminaron %1$d archivos de caché (%2$s liberados). Tus archivos en la carpeta de destino permanecen intactos.</string>
+    <string name="settings_cache_cleared_empty">No hay documentos temporales para eliminar.</string>
+    <string name="settings_permissions_section">Permisos y Privacidad</string>
+    <string name="settings_permissions_desc" formatted="false">Estado verificado en tiempo real a nivel de sistema Android. DocMask procesa todos tus documentos 100% en local y sin conexión.</string>
+    <string name="settings_permissions_auditing">Auditoría de permisos en curso...</string>
+    <string name="settings_permission_camera_title">Cámara</string>
+    <string name="settings_permission_camera_desc">Para fotografiar documentos de identidad</string>
+    <string name="settings_permission_camera_granted">Permiso de cámara concedido.</string>
+    <string name="settings_permission_camera_denied">Permiso de cámara no concedido.</string>
+    <string name="settings_permission_camera_rationale" formatted="false">La cámara solo se utiliza cuando decides tomar una foto directamente desde la app. La imagen se procesa 100% en local y nunca se sube a internet.</string>
+    <string name="settings_permission_gallery_title">Acceso a Imágenes</string>
+    <string name="settings_permission_gallery_desc">Para seleccionar fotos o PDFs desde tu dispositivo</string>
+    <string name="settings_permission_gallery_granted">Acceso total a la galería concedido.</string>
+    <string name="settings_permission_gallery_partial">Acceso a fotos seleccionadas concedido.</string>
+    <string name="settings_permission_gallery_denied">Permiso de fotos no concedido.</string>
+    <string name="settings_permission_gallery_rationale" formatted="false">El acceso a la galería te permite importar tu DNI o pasaporte desde tus fotos. Puedes elegir si permites el acceso solo a ciertas fotos o a todas. DocMask procesa la foto 100% en tu dispositivo y nunca la comparte.</string>
+    <string name="settings_permission_saf_title">Acceso a Almacenamiento (SAF)</string>
+    <string name="settings_permission_saf_desc">Para guardar documentos en una carpeta personalizada</string>
+    <string name="settings_permission_saf_rationale">DocMask no requiere permisos invasivos de gestión total de archivos en tu móvil. Cumple con las políticas de privacidad de Google Play permitiéndote elegir únicamente los PDFs que deseas anonimizar.</string>
+    <string name="settings_permission_badge_saf">Nativo (SAF)</string>
+    <string name="settings_permission_badge_granted">Concedido</string>
+    <string name="settings_permission_badge_partial">Parcial (Seleccionadas)</string>
+    <string name="settings_permission_badge_denied">No concedido</string>
+    <string name="settings_permission_status_saf">Estado: Acceso Seguro nativo garantizado mediante el Selector del Sistema (SAF). No requiere permisos intrusivos.</string>
+    <string name="settings_permission_status_granted">Estado actual: Concedido (acceso completo). Toca abajo para abrir los Ajustes del sistema si deseas revocarlo o inspeccionarlo.</string>
+    <string name="settings_permission_status_partial">Estado actual: Concedido parcialmente (acceso a fotos seleccionadas). Toca abajo para conceder acceso completo en Ajustes si lo deseas.</string>
+    <string name="settings_permission_status_denied">Estado actual: No concedido. Puedes solicitarlo de inmediato o abrir la configuración de la app.</string>
+    <string name="settings_permission_action_request">Solicitar Permiso</string>
+    <string name="settings_permission_action_android_settings">Ajustes de Android</string>
+    <string name="settings_permission_action_system_settings">Ajustes del Sistema</string>
+    <string name="settings_pro_card_title">DocMask Pro</string>
+    <string name="settings_pro_card_badge_active">ACTIVO</string>
+    <string name="settings_pro_card_desc">Gestiona tu suscripción Pro y las ventajas</string>
+    <string name="settings_pro_card_content_description">Abrir DocMask Pro</string>
+    <string name="settings_aepd_title">Recomendaciones Oficiales AEPD</string>
+    <string name="settings_aepd_advice">1. No entregues el DNI sin tachar el número de soporte y código CAN.\n2. La marca de agua debe especificar el receptor y la fecha.\n3. Convierte siempre a escala de grises para evitar su uso en altas de telefonía o créditos fraudulentos.</string>
+    <string name="settings_app_info_title">Información de la aplicación</string>
+    <string name="settings_app_version">Versión %s (Oficial)</string>
+    <string name="settings_app_info_p1">DocMask es una utilidad de privacidad radical diseñada para proteger documentos de identidad españoles y europeos (DNI, Pasaporte, NIE, carnet de conducir) al enviarlos a terceros.</string>
+    <string name="settings_app_info_p2">• Privacidad 100% Offline: La aplicación no solicita ni posee el permiso INTERNET en el sistema operativo. Tus fotos e información confidencial jamás abandonan tu teléfono.</string>
+    <string name="settings_app_info_p3">• IA Local Empaquetada: Detección inteligente en el dispositivo de número de soporte, código CAN, firma y rostro mediante Google ML Kit.</string>
+    <string name="settings_app_info_p4">• Protección Antifraude: Pixelado interactivo con un toque, conversión a escala de grises y superposición de marcas de agua disuasorias con fecha y propósito específico.</string>
+    <string name="settings_open_app_settings">Abrir Ajustes del Sistema</string>
+    <string name="settings_zero_network_title" formatted="false">Garantía Zero-Network (100% Offline)</string>
+    <string name="settings_zero_network_desc">DocMask no tiene el permiso INTERNET en su AndroidManifest.xml. El propio sistema operativo Android impide cualquier transmisión de datos. Tus documentos nunca salen de tu dispositivo.</string>
+
+    <!-- Pantalla Pro -->
+    <string name="pro_title">DocMask Pro</string>
+    <string name="pro_subtitle">Protección profesional ilimitada para tus documentos</string>
+    <string name="pro_badge_active">¡Versión Pro Activa!</string>
+    <string name="pro_manage_subscription">Gestionar en Google Play</string>
+    <string name="pro_billing_init_error">No se pudo iniciar Google Play Billing</string>
+    <string name="pro_open_play_store_hint">Abre Google Play Store para gestionar tus suscripciones.</string>
+    <string name="pro_feature_quota_title">Hasta 40 documentos al día</string>
+    <string name="pro_feature_quota_desc">Sin esperas para tus trámites y gestiones</string>
+    <string name="pro_feature_dual_pdf_title">DNI en PDF de 2 caras</string>
+    <string name="pro_feature_dual_pdf_desc">Une anverso y reverso en un único PDF protegido listo para enviar</string>
+    <string name="pro_feature_templates_title">Hasta 15 plantillas personalizadas</string>
+    <string name="pro_feature_templates_desc">Guarda marcas de agua para alquiler, hoteles, bancos y más</string>
+    <string name="pro_feature_manual_redaction_title">Pincel de pixelado manual libre</string>
+    <string name="pro_feature_manual_redaction_desc">Oculta cualquier dato o área personalizada con precisión</string>
+    <string name="pro_feature_offline_title" formatted="false">Privacidad 100% garantizada</string>
+    <string name="pro_feature_offline_desc" formatted="false">Todo el procesamiento sigue siendo 100% local en tu dispositivo</string>
+    <string name="pro_purchase_button">Comprar DocMask Pro (%s)</string>
+    <string name="pro_restore_button">Restaurar Compras</string>
+    <string name="pro_debug_switch">Modo Debug Pro (Desarrollo)</string>
+
+    <!-- Pantalla de Bloqueo -->
+    <string name="lock_title">DocMask está Protegido</string>
+    <string name="lock_desc">Confirma tu identidad biométrica o PIN para acceder a tus documentos.</string>
+    <string name="lock_unlock_button">Desbloquear</string>
+    <string name="lock_prompt_title">Desbloquear DocMask</string>
+    <string name="lock_prompt_subtitle">Confirma tu identidad para acceder a tus documentos</string>
+
+    <!-- Compartir y Mensajes de Exportación -->
+    <string name="share_subject_single">Documento protegido con DocMask</string>
+    <string name="share_body_single">Adjunto documento de identidad protegido con DocMask (100% Offline).</string>
+    <string name="share_chooser_single">Compartir documento protegido</string>
+    <string name="share_subject_dual_images">Documento de identidad protegido con DocMask</string>
+    <string name="share_body_dual_images">Adjunto anverso y reverso protegidos con DocMask (100% Offline).</string>
+    <string name="share_chooser_dual_images">Compartir DNI protegido (Anverso y Reverso)</string>
+    <string name="share_subject_single_pdf">Documento protegido con DocMask</string>
+    <string name="share_body_single_pdf">Adjunto documento protegido con DocMask en formato PDF (100% Offline).</string>
+    <string name="share_chooser_single_pdf">Compartir PDF protegido</string>
+    <string name="share_subject_dual_pdf">DNI protegido en PDF (DocMask)</string>
+    <string name="share_body_dual_pdf">Adjunto DNI completo protegido en un único PDF seguro de dos páginas (100% Offline).</string>
+    <string name="share_chooser_dual_pdf">Compartir DNI protegido en PDF</string>
+
+    <!-- Plantillas por defecto -->
+    <string name="template_rental_title">Alquiler de Vivienda</string>
+    <string name="template_rental_purpose">Copia para alquiler de vivienda</string>
+    <string name="template_hotel_title">Reserva Hotelera</string>
+    <string name="template_hotel_purpose">Copia exclusiva para reserva de hotel</string>
+    <string name="template_employment_title">Trámite Laboral</string>
+    <string name="template_employment_purpose">Copia para proceso de contratación</string>
+    <string name="template_banking_title">Gestión Bancaria</string>
+    <string name="template_banking_purpose">Copia exclusiva para trámite bancario</string>
+    <string name="made_with_by_feryael_justice" tools:new="true">Hecho con ❤️ por Feryael Justice</string>
 </resources>

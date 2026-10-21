@@ -47,8 +47,9 @@ data class EditorUiState(
     val isProUser: Boolean = false,
     val isBiometricEnabled: Boolean = false,
     val isEditingRegions: Boolean = false,
+    val generatePdfForSingleSide: Boolean = false,
     val generatePdfForDni: Boolean = false,
-    val isPdfDownloadAvailable: Boolean = false,
+    val isMaskingPreviewLoading: Boolean = false,
     val dailyExportsUsed: Int = 0,
     val dailyExportsLimit: Int = 3,
     val customStorageUri: String? = null,
@@ -87,6 +88,8 @@ sealed interface EditorUiEvent {
     data class UpdatePixelIntensity(val percent: Int) : EditorUiEvent
     data class ToggleWatermarkDate(val enabled: Boolean) : EditorUiEvent
     data class ToggleGeneratePdf(val enabled: Boolean) : EditorUiEvent
+    data class ToggleGeneratePdfSingleSide(val enabled: Boolean) : EditorUiEvent
+    data class SetMaskingPreviewLoading(val isLoading: Boolean) : EditorUiEvent
     data class UpdateWatermarkText(val text: String) : EditorUiEvent
     data class UpdateWatermarkOpacity(val opacity: Float) : EditorUiEvent
     data class SelectTemplate(val template: WatermarkTemplate) : EditorUiEvent
@@ -100,13 +103,12 @@ sealed interface EditorUiEvent {
     data class SaveManualRegions(val side: DocumentSide, val manualRegions: List<RedactionArea>) : EditorUiEvent
     data class PurchasePro(val activity: Activity?) : EditorUiEvent
     data class RefreshPermissions(val context: Context) : EditorUiEvent
-    object ApplyAepdPreset : EditorUiEvent
-    object RestorePurchases : EditorUiEvent
-    object ExportDocument : EditorUiEvent
-    object DownloadPdf : EditorUiEvent
+    data object ApplyAepdPreset : EditorUiEvent
+    data object RestorePurchases : EditorUiEvent
+    data object ExportDocument : EditorUiEvent
     data class SetLoading(val isLoading: Boolean, val message: String? = null) : EditorUiEvent
     data class SetExporting(val isExporting: Boolean, val message: String? = null) : EditorUiEvent
     data class ShowError(val message: String) : EditorUiEvent
-    object DismissError : EditorUiEvent
-    object DismissSuccessMessage : EditorUiEvent
+    data object DismissError : EditorUiEvent
+    data object DismissSuccessMessage : EditorUiEvent
 }

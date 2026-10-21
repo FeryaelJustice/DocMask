@@ -7,6 +7,7 @@ import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import androidx.core.graphics.createBitmap
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
@@ -36,7 +37,7 @@ object PdfDocumentManager {
                         renderer.openPage(i).use { page ->
                             val width = page.width
                             val height = page.height
-                            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                            val bitmap = createBitmap(width, height)
                             bitmap.eraseColor(Color.WHITE)
                             page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                             bitmaps.add(bitmap)

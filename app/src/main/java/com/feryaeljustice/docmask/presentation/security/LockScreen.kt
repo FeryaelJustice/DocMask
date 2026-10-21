@@ -4,10 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,9 +23,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.feryaeljustice.docmask.R
 
 /**
  * Screen displayed when the application is protected by Biometric / PIN Lock.
@@ -56,7 +58,7 @@ fun LockScreen(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.Lock,
-                        contentDescription = "Aplicación Bloqueada",
+                        contentDescription = stringResource(R.string.lock_title),
                         modifier = Modifier.size(48.dp),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -66,7 +68,7 @@ fun LockScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "DocMask Protegido",
+                text = stringResource(R.string.lock_title),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -75,7 +77,7 @@ fun LockScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Has activado el bloqueo de seguridad. Confirma tu huella, rostro o PIN del dispositivo para acceder a tus documentos.",
+                text = stringResource(R.string.lock_desc),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -97,7 +99,7 @@ fun LockScreen(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Desbloquear",
+                    text = stringResource(R.string.lock_unlock_button),
                     style = MaterialTheme.typography.titleMedium
                 )
             }

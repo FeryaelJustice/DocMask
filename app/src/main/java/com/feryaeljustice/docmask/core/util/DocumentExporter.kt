@@ -6,7 +6,9 @@ import android.graphics.Bitmap
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
+import com.feryaeljustice.docmask.R
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
@@ -32,7 +34,7 @@ object DocumentExporter {
     ): Uri? {
         if (!customStorageUriString.isNullOrBlank()) {
             try {
-                val treeUri = Uri.parse(customStorageUriString)
+                val treeUri = customStorageUriString.toUri()
                 val pickedDir = DocumentFile.fromTreeUri(context, treeUri)
                 if (pickedDir != null && pickedDir.canWrite()) {
                     val newFile = pickedDir.createFile(mimeType, fileName)
@@ -80,13 +82,13 @@ object DocumentExporter {
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "image/png"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "Documento protegido con DocMask")
-                putExtra(Intent.EXTRA_TEXT, "Adjunto documento de identidad protegido con DocMask (100% Offline).")
+                putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.share_subject_single))
+                putExtra(Intent.EXTRA_TEXT, context.getString(R.string.share_body_single))
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
-            val chooser = Intent.createChooser(shareIntent, "Compartir documento protegido").apply {
+            val chooser = Intent.createChooser(shareIntent, context.getString(R.string.share_chooser_single)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
@@ -138,18 +140,77 @@ object DocumentExporter {
             val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
                 type = "image/png"
                 putParcelableArrayListExtra(Intent.EXTRA_STREAM, uriList)
-                putExtra(Intent.EXTRA_SUBJECT, "Documento de identidad protegido con DocMask")
-                putExtra(Intent.EXTRA_TEXT, "Adjunto anverso y reverso protegidos con DocMask (100% Offline).")
+                putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.share_subject_dual_images))
+                putExtra(Intent.EXTRA_TEXT, context.getString(R.string.share_body_dual_images))
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
-            val chooser = Intent.createChooser(shareIntent, "Compartir DNI protegido (Anverso y Reverso)").apply {
+            val chooser = Intent.createChooser(shareIntent, context.getString(R.string.share_chooser_dual_images)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
             context.startActivity(chooser)
             Result.success(uriList)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    fun exportAndShareSinglePdf(
+        context: Context,
+        bitmap: Bitmap,
+        title: String = "docmask_documento",
+        customStorageUri: String? = null
+    ): Result<Uri> {
+        return try {
+            val exportDir = File(context.cacheDir, "exported_documents").apply {
+                if (!exists()) mkdirs()
+            }
+
+            val timestamp = getTimestamp()
+            val fileName = "${title}_$timestamp.pdf"
+            val pdfFile = File(exportDir, fileName)
+
+            val pdfDocument = PdfDocument()
+            val pageInfo = PdfDocument.PageInfo.Builder(bitmap.width, bitmap.height, 1).create()
+            val page = pdfDocument.startPage(pageInfo)
+            page.canvas.drawBitmap(bitmap, 0f, 0f, null)
+            pdfDocument.finishPage(page)
+
+            FileOutputStream(pdfFile).use { out ->
+                pdfDocument.writeTo(out)
+            }
+            pdfDocument.close()
+
+            // Also write to SAF folder if configured
+            saveToSafOrFallback(context, customStorageUri, fileName, "application/pdf") { out ->
+                val doc = PdfDocument()
+                val p = doc.startPage(pageInfo)
+                p.canvas.drawBitmap(bitmap, 0f, 0f, null)
+                doc.finishPage(p)
+                doc.writeTo(out)
+                doc.close()
+            }
+
+            val authority = "${context.packageName}.fileprovider"
+            val uri = FileProvider.getUriForFile(context, authority, pdfFile)
+
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.share_subject_single_pdf))
+                putExtra(Intent.EXTRA_TEXT, context.getString(R.string.share_body_single_pdf))
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            val chooser = Intent.createChooser(shareIntent, context.getString(R.string.share_chooser_single_pdf)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            context.startActivity(chooser)
+            Result.success(uri)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -209,13 +270,13 @@ object DocumentExporter {
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "application/pdf"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "DNI protegido en PDF (DocMask)")
-                putExtra(Intent.EXTRA_TEXT, "Adjunto DNI completo protegido en un unico PDF seguro de dos paginas (100% Offline).")
+                putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.share_subject_dual_pdf))
+                putExtra(Intent.EXTRA_TEXT, context.getString(R.string.share_body_dual_pdf))
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
-            val chooser = Intent.createChooser(shareIntent, "Compartir DNI protegido en PDF").apply {
+            val chooser = Intent.createChooser(shareIntent, context.getString(R.string.share_chooser_dual_pdf)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 

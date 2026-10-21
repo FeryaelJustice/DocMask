@@ -8,6 +8,11 @@ import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.get
+import androidx.core.graphics.scale
+import androidx.core.graphics.set
+import androidx.core.graphics.withRotation
 import com.feryaeljustice.docmask.core.model.BoundingBox
 import com.feryaeljustice.docmask.core.model.MaskingOptions
 import com.feryaeljustice.docmask.core.model.RedactionArea
@@ -55,7 +60,13 @@ class AndroidBitmapProcessor : BitmapProcessor {
                 .filter { it.isRedacted }
                 .map { it.boundingBox }
             if (activeRegions.isNotEmpty()) {
-                result = applyPixelation(result, activeRegions, options.pixelBlockSize)
+                val baseDimension = max(source.width, source.height)
+                // Calculate dynamic block size according to pixelPercent (10% to 100%)
+                val dynamicBlockSize = (baseDimension * (options.pixelPercent.coerceIn(10, 100) / 100f) * 0.05f)
+                    .toInt()
+                    .coerceAtLeast(8)
+                val effectiveBlockSize = max(dynamicBlockSize, options.pixelBlockSize)
+                result = applyPixelation(result, activeRegions, effectiveBlockSize)
             }
         }
 
@@ -77,6 +88,10 @@ class AndroidBitmapProcessor : BitmapProcessor {
         val width = output.width
         val height = output.height
         val safeBlockSize = max(4, blockSize)
+        val canvas = Canvas(output)
+        val nearestNeighborPaint = Paint().apply {
+            isFilterBitmap = false // Nearest-neighbor ensures distinct pixelated privacy mosaic
+        }
 
         for (region in regions) {
             val left = max(0, region.left.toInt())
@@ -84,54 +99,54 @@ class AndroidBitmapProcessor : BitmapProcessor {
             val right = min(width, region.right.toInt())
             val bottom = min(height, region.bottom.toInt())
 
-            if (right <= left || bottom <= top) continue
+            val regionW = right - left
+            val regionH = bottom - top
 
-            var y = top
-            while (y < bottom) {
-                var x = left
-                val blockH = min(safeBlockSize, bottom - y)
-                while (x < right) {
-                    val blockW = min(safeBlockSize, right - x)
+            if (regionW <= 0 || regionH <= 0) continue
 
-                    var redSum = 0L
-                    var greenSum = 0L
-                    var blueSum = 0L
-                    var count = 0
+            // Downscale to tiny dimensions then upscale without filtering to form mosaic blocks
+            val downscaledW = max(1, regionW / safeBlockSize)
+            val downscaledH = max(1, regionH / safeBlockSize)
 
-                    for (by in 0 until blockH) {
-                        for (bx in 0 until blockW) {
-                            val pixel = output.getPixel(x + bx, y + by)
-                            redSum += Color.red(pixel)
-                            greenSum += Color.green(pixel)
-                            blueSum += Color.blue(pixel)
-                            count++
-                        }
-                    }
+            try {
+                val subBitmap = Bitmap.createBitmap(output, left, top, regionW, regionH)
+                val scaledDown = subBitmap.scale(downscaledW, downscaledH, filter = false)
+                val scaledUp = scaledDown.scale(regionW, regionH, filter = false)
 
-                    if (count > 0) {
-                        val avgColor = Color.rgb(
-                            (redSum / count).toInt(),
-                            (greenSum / count).toInt(),
-                            (blueSum / count).toInt()
-                        )
+                canvas.drawBitmap(scaledUp, left.toFloat(), top.toFloat(), nearestNeighborPaint)
 
+                if (subBitmap != scaledDown && subBitmap != scaledUp) {
+                    subBitmap.recycle()
+                }
+                if (scaledDown != scaledUp) {
+                    scaledDown.recycle()
+                }
+                scaledUp.recycle()
+            } catch (e: Exception) {
+                // Fallback pixel by pixel if memory allocation fails for sub-bitmaps
+                var y = top
+                while (y < bottom) {
+                    var x = left
+                    val blockH = min(safeBlockSize, bottom - y)
+                    while (x < right) {
+                        val blockW = min(safeBlockSize, right - x)
+                        val samplePixel = output[x, y]
                         for (by in 0 until blockH) {
                             for (bx in 0 until blockW) {
-                                output.setPixel(x + bx, y + by, avgColor)
+                                output[x + bx, y + by] = samplePixel
                             }
                         }
+                        x += safeBlockSize
                     }
-
-                    x += safeBlockSize
+                    y += safeBlockSize
                 }
-                y += safeBlockSize
             }
         }
         return output
     }
 
     override fun applyGrayscale(source: Bitmap): Bitmap {
-        val output = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        val output = createBitmap(source.width, source.height)
         val canvas = Canvas(output)
         val paint = Paint().apply {
             val matrix = ColorMatrix().apply { setSaturation(0f) }
@@ -163,43 +178,41 @@ class AndroidBitmapProcessor : BitmapProcessor {
             isFakeBoldText = true
         }
 
-        canvas.save()
-        canvas.rotate(config.rotationDegrees, source.width / 2f, source.height / 2f)
+        canvas.withRotation(config.rotationDegrees, source.width / 2f, source.height / 2f) {
+            if (config.isRepeatedGrid) {
+                val textBounds = Rect()
+                paint.getTextBounds(text, 0, text.length, textBounds)
+                val textWidth = max(textBounds.width().toFloat(), textSize * 5f)
+                val colStep = textWidth + (textSize * 3f)
+                val rowStep = textSize * 4.5f
 
-        if (config.isRepeatedGrid) {
-            val textBounds = Rect()
-            paint.getTextBounds(text, 0, text.length, textBounds)
-            val textWidth = max(textBounds.width().toFloat(), textSize * 5f)
-            val colStep = textWidth + (textSize * 3f)
-            val rowStep = textSize * 4.5f
+                val diagonal = kotlin.math.hypot(source.width.toDouble(), source.height.toDouble()).toFloat()
+                val startX = (source.width / 2f) - diagonal
+                val endX = (source.width / 2f) + diagonal
+                val startY = (source.height / 2f) - diagonal
+                val endY = (source.height / 2f) + diagonal
 
-            val diagonal = kotlin.math.hypot(source.width.toDouble(), source.height.toDouble()).toFloat()
-            val startX = (source.width / 2f) - diagonal
-            val endX = (source.width / 2f) + diagonal
-            val startY = (source.height / 2f) - diagonal
-            val endY = (source.height / 2f) + diagonal
-
-            var rowIndex = 0
-            var y = startY
-            while (y < endY) {
-                val xOffset = if (rowIndex % 2 == 1) colStep * 0.5f else 0f
-                var x = startX + xOffset
-                while (x < endX) {
-                    canvas.drawText(text, x, y, paint)
-                    x += colStep
+                var rowIndex = 0
+                var y = startY
+                while (y < endY) {
+                    val xOffset = if (rowIndex % 2 == 1) colStep * 0.5f else 0f
+                    var x = startX + xOffset
+                    while (x < endX) {
+                        drawText(text, x, y, paint)
+                        x += colStep
+                    }
+                    y += rowStep
+                    rowIndex++
                 }
-                y += rowStep
-                rowIndex++
+            } else {
+                val textBounds = Rect()
+                paint.getTextBounds(text, 0, text.length, textBounds)
+                val textX = (source.width - textBounds.width()) / 2f
+                val textY = (source.height + textBounds.height()) / 2f
+                drawText(text, textX, textY, paint)
             }
-        } else {
-            val textBounds = Rect()
-            paint.getTextBounds(text, 0, text.length, textBounds)
-            val textX = (source.width - textBounds.width()) / 2f
-            val textY = (source.height + textBounds.height()) / 2f
-            canvas.drawText(text, textX, textY, paint)
         }
 
-        canvas.restore()
         return output
     }
 }

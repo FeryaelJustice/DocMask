@@ -2,6 +2,7 @@ package com.feryaeljustice.docmask.presentation.settings
 
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -71,12 +72,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.feryaeljustice.docmask.BuildConfig
+import com.feryaeljustice.docmask.R
 import com.feryaeljustice.docmask.core.model.AppPermissionStatus
 import com.feryaeljustice.docmask.core.model.AppPermissionType
 import com.feryaeljustice.docmask.core.model.PermissionItemState
@@ -90,6 +95,7 @@ import com.feryaeljustice.docmask.presentation.editor.EditorViewModel
 @Composable
 fun SettingsScreen(
     viewModel: EditorViewModel,
+    modifier: Modifier = Modifier,
     onNavigateToPro: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -117,31 +123,33 @@ fun SettingsScreen(
         viewModel.onEvent(EditorUiEvent.RefreshPermissions(context))
     }
 
+    val resources = LocalResources.current
+
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         viewModel.onEvent(EditorUiEvent.RefreshPermissions(context))
         if (isGranted) {
-            Toast.makeText(context, "Permiso de cámara concedido.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, resources.getString(R.string.settings_permission_camera_granted), Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(context, "Permiso de cámara no concedido.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, resources.getString(R.string.settings_permission_camera_denied), Toast.LENGTH_SHORT).show()
         }
     }
 
     val mediaPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissionsMap ->
+    ) {
         viewModel.onEvent(EditorUiEvent.RefreshPermissions(context))
         val status = PermissionHelper.checkMediaPermissionStatus(context)
         when (status) {
             AppPermissionStatus.GRANTED -> {
-                Toast.makeText(context, "Acceso total a la galería concedido.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, resources.getString(R.string.settings_permission_gallery_granted), Toast.LENGTH_SHORT).show()
             }
             AppPermissionStatus.PARTIAL -> {
-                Toast.makeText(context, "Acceso a fotos seleccionadas concedido.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, resources.getString(R.string.settings_permission_gallery_partial), Toast.LENGTH_SHORT).show()
             }
             else -> {
-                Toast.makeText(context, "Permiso de fotos no concedido.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, resources.getString(R.string.settings_permission_gallery_denied), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -167,20 +175,21 @@ fun SettingsScreen(
                 val docFile = DocumentFile.fromTreeUri(context, treeUri)
                 if (docFile != null && docFile.canWrite()) {
                     viewModel.updateCustomStorageUri(treeUri.toString())
-                    Toast.makeText(context, "Carpeta de guardado configurada correctamente.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, resources.getString(R.string.settings_storage_configured_success), Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(context, "No se otorgaron permisos de escritura. Por favor selecciona otra carpeta.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, resources.getString(R.string.settings_storage_no_write_permission), Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
-                Toast.makeText(context, "Error al configurar permisos de carpeta: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, resources.getString(R.string.settings_storage_config_error, e.message ?: ""), Toast.LENGTH_LONG).show()
             }
         }
     }
 
     Scaffold(
+        modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Ajustes y Seguridad") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     Icon(
                         imageVector = Icons.Default.Settings,
@@ -192,7 +201,7 @@ fun SettingsScreen(
                     IconButton(onClick = { showInfoDialog = true }) {
                         Icon(
                             imageVector = Icons.Outlined.Info,
-                            contentDescription = "Información de la aplicación"
+                            contentDescription = stringResource(R.string.settings_info_button_content_description)
                         )
                     }
                 }
@@ -227,14 +236,14 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Garantía Zero-Network (100% Offline)",
+                            text = stringResource(R.string.settings_zero_network_title),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "DocMask no tiene el permiso INTERNET en su AndroidManifest.xml. El propio sistema operativo Android impide cualquier transmisión de datos. Tus documentos nunca salen de tu dispositivo.",
+                        text = stringResource(R.string.settings_zero_network_desc),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -263,7 +272,7 @@ fun SettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Permisos y Privacidad",
+                                text = stringResource(R.string.settings_permissions_section),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -271,7 +280,7 @@ fun SettingsScreen(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Estado verificado en tiempo real a nivel de sistema Android. DocMask procesa todos tus documentos 100% en local y sin conexión.",
+                        text = stringResource(R.string.settings_permissions_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -279,7 +288,7 @@ fun SettingsScreen(
 
                     if (uiState.permissions.isEmpty()) {
                         Text(
-                            text = "Auditoría de permisos en curso...",
+                            text = stringResource(R.string.settings_permissions_auditing),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -296,7 +305,7 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Toca cualquier permiso para solicitarlo o abrir los Ajustes de Android para gestionarlo.",
+                        text = stringResource(R.string.settings_permissions_desc),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
@@ -343,7 +352,7 @@ fun SettingsScreen(
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "DocMask Pro",
+                                    text = stringResource(R.string.settings_pro_card_title),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -354,7 +363,7 @@ fun SettingsScreen(
                                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                                     ) {
                                         Text(
-                                            text = "ACTIVO",
+                                            text = stringResource(R.string.settings_pro_card_badge_active),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Bold,
@@ -365,7 +374,7 @@ fun SettingsScreen(
                             }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Gestiona tu suscripción Pro y las ventajas",
+                                text = stringResource(R.string.settings_pro_card_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -373,7 +382,7 @@ fun SettingsScreen(
                     }
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                        contentDescription = "Abrir DocMask Pro",
+                        contentDescription = stringResource(R.string.settings_pro_card_content_description),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(16.dp)
                     )
@@ -400,13 +409,13 @@ fun SettingsScreen(
                             Icon(Icons.Default.Fingerprint, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Bloqueo Biométrico",
+                                text = stringResource(R.string.settings_biometric_title),
                                 style = MaterialTheme.typography.titleMedium
                             )
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Solicitar huella dactilar, rostro o PIN al abrir DocMask.",
+                            text = stringResource(R.string.settings_biometric_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -418,7 +427,7 @@ fun SettingsScreen(
                                 if (!uiState.isProUser) {
                                     Toast.makeText(
                                         context,
-                                        "El bloqueo biométrico es exclusivo de DocMask Pro",
+                                        resources.getString(R.string.settings_biometric_pro_exclusive),
                                         Toast.LENGTH_SHORT
                                     ).show()
                                     onNavigateToPro()
@@ -428,7 +437,7 @@ fun SettingsScreen(
                                 if (!canAuth) {
                                     Toast.makeText(
                                         context,
-                                        "No hay huella, rostro ni PIN configurado en este dispositivo",
+                                        resources.getString(R.string.settings_biometric_not_available),
                                         Toast.LENGTH_LONG
                                     ).show()
                                     return@Switch
@@ -437,7 +446,7 @@ fun SettingsScreen(
                             viewModel.onEvent(EditorUiEvent.ToggleBiometric(isEnabled))
                             Toast.makeText(
                                 context,
-                                if (isEnabled) "Bloqueo biométrico activado" else "Bloqueo biométrico desactivado",
+                                if (isEnabled) resources.getString(R.string.settings_biometric_enabled) else resources.getString(R.string.settings_biometric_disabled),
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
@@ -462,13 +471,13 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Recomendaciones Oficiales AEPD",
+                            text = stringResource(R.string.settings_aepd_title),
                             style = MaterialTheme.typography.titleMedium
                         )
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "1. No entregues el DNI sin tachar el número de soporte y código CAN.\n2. La marca de agua debe especificar el receptor y la fecha.\n3. Convierte siempre a escala de grises para evitar su uso en altas de telefonía o créditos fraudulentos.",
+                        text = stringResource(R.string.settings_aepd_advice),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -492,21 +501,28 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Carpeta de Guardado (Almacenamiento)",
+                            text = stringResource(R.string.settings_storage_folder_title),
                             style = MaterialTheme.typography.titleMedium
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    val currentFolderText = if (uiState.customStorageUri != null) {
+                    val customFolderName = if (uiState.customStorageUri != null) {
                         try {
                             val uri = Uri.parse(uiState.customStorageUri)
                             val doc = DocumentFile.fromTreeUri(context, uri)
-                            "Carpeta actual: ${doc?.name ?: uri.lastPathSegment ?: "Personalizada"}"
-                        } catch (e: Exception) {
-                            "Carpeta personalizada configurada"
+                            doc?.name ?: uri.lastPathSegment
+                        } catch (_: Exception) {
+                            null
                         }
                     } else {
-                        "Carpeta actual: Almacenamiento privado de la app (Predeterminado)"
+                        null
+                    }
+                    val currentFolderText = if (customFolderName != null) {
+                        stringResource(R.string.settings_storage_current_folder, customFolderName)
+                    } else if (uiState.customStorageUri != null) {
+                        stringResource(R.string.settings_storage_custom_folder)
+                    } else {
+                        stringResource(R.string.settings_storage_default_folder)
                     }
                     Text(
                         text = currentFolderText,
@@ -516,34 +532,72 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Indica la carpeta de tu dispositivo donde se descargarán y guardarán tus fotos y documentos protegidos.",
+                        text = stringResource(R.string.settings_storage_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
                             onClick = { folderPickerLauncher.launch(null) },
-                            modifier = Modifier.weight(1f).defaultMinSize(minHeight = 44.dp)
+                            modifier = Modifier.defaultMinSize(minHeight = 44.dp)
                         ) {
                             Icon(Icons.Default.Folder, contentDescription = null)
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Cambiar Carpeta")
+                            Text(stringResource(R.string.settings_storage_change_folder))
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                val customUriString = uiState.customStorageUri
+                                try {
+                                    if (!customUriString.isNullOrBlank()) {
+                                        val treeUri = customUriString.toUri()
+                                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                                            setDataAndType(treeUri, "resource/folder")
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    } else {
+                                        val intent = Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    }
+                                } catch (_: Exception) {
+                                    try {
+                                        val fallbackIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                                            addCategory(Intent.CATEGORY_OPENABLE)
+                                            type = "*/*"
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(fallbackIntent)
+                                    } catch (e2: Exception) {
+                                        Toast.makeText(context, resources.getString(R.string.settings_storage_open_error, e2.message ?: ""), Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.defaultMinSize(minHeight = 44.dp)
+                        ) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = null)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(stringResource(R.string.settings_storage_open_folder))
                         }
                         if (uiState.customStorageUri != null) {
                             OutlinedButton(
                                 onClick = {
                                     viewModel.updateCustomStorageUri(null)
-                                    Toast.makeText(context, "Se restableció a la carpeta predeterminada.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, resources.getString(R.string.settings_storage_reset_success), Toast.LENGTH_SHORT).show()
                                 },
                                 modifier = Modifier.defaultMinSize(minHeight = 44.dp)
                             ) {
                                 Icon(Icons.Default.Restore, contentDescription = null)
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Restablecer")
+                                Text(stringResource(R.string.settings_storage_reset_folder))
                             }
                         }
                     }
@@ -567,19 +621,19 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Almacenamiento Temporal y Caché",
+                            text = stringResource(R.string.settings_cache_title),
                             style = MaterialTheme.typography.titleMedium
                         )
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Tienes tus generaciones pasadas temporalmente en caché en la carpeta de la aplicación para poder compartirlas. Puedes vaciarlas en cualquier momento para liberar espacio, ya que tus documentos guardados se conservan permanentemente en tu carpeta de destino configurada.",
+                        text = stringResource(R.string.settings_cache_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Espacio ocupado en caché: ${storageStats.first} archivo(s) (${CacheManager.formatBytes(storageStats.second)})",
+                        text = stringResource(R.string.settings_cache_usage, storageStats.first, CacheManager.formatBytes(storageStats.second)),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface
@@ -590,9 +644,9 @@ fun SettingsScreen(
                             val (deletedCount, freedBytes) = CacheManager.clearTemporaryStorage(context)
                             storageStats = CacheManager.getTemporaryStorageStats(context)
                             val message = if (deletedCount > 0) {
-                                "Se eliminaron $deletedCount archivos de caché (${CacheManager.formatBytes(freedBytes)} liberados). Tus archivos en la carpeta de destino permanecen intactos."
+                                resources.getString(R.string.settings_cache_cleared, deletedCount, CacheManager.formatBytes(freedBytes))
                             } else {
-                                "No hay documentos temporales para eliminar."
+                                resources.getString(R.string.settings_cache_cleared_empty)
                             }
                             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                         },
@@ -602,7 +656,7 @@ fun SettingsScreen(
                     ) {
                         Icon(Icons.Default.CleaningServices, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Vaciar Caché Temporal")
+                        Text(stringResource(R.string.settings_cache_clear_button))
                     }
                 }
             }
@@ -624,19 +678,19 @@ fun SettingsScreen(
             title = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "DocMask",
+                        text = stringResource(R.string.app_name),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Versión 1.0 (Oficial)",
+                        text = stringResource(R.string.settings_app_version, BuildConfig.VERSION_NAME),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Made with ❤️ by Feryael Justice",
+                        text = stringResource(R.string.made_with_by_feryael_justice),
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.secondary
@@ -649,21 +703,21 @@ fun SettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "DocMask es una utilidad de privacidad radical diseñada para proteger documentos de identidad españoles y europeos (DNI, Pasaporte, NIE, carnet de conducir) al enviarlos a terceros.",
+                        text = stringResource(R.string.settings_app_info_p1),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "• Privacidad 100% Offline: La aplicación no solicita ni posee el permiso INTERNET en el sistema operativo. Tus fotos e información confidencial jamás abandonan tu teléfono.",
+                        text = stringResource(R.string.settings_app_info_p2),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "• IA Local Empaquetada: Detección inteligente en el dispositivo de número de soporte, código CAN, firma y rostro mediante Google ML Kit.",
+                        text = stringResource(R.string.settings_app_info_p3),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "• Protección Antifraude: Pixelado interactivo con un toque, conversión a escala de grises y superposición de marcas de agua disuasorias con fecha y propósito específico.",
+                        text = stringResource(R.string.settings_app_info_p4),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -671,7 +725,7 @@ fun SettingsScreen(
             },
             confirmButton = {
                 Button(onClick = { showInfoDialog = false }) {
-                    Text("Entendido")
+                    Text(stringResource(R.string.common_understood))
                 }
             }
         )
@@ -712,13 +766,13 @@ fun SettingsScreen(
                     ) {
                         Text(
                             text = if (perm.isSafAccess) {
-                                "Estado: Acceso Seguro nativo garantizado mediante el Selector del Sistema (SAF). No requiere permisos intrusivos."
+                                stringResource(R.string.settings_permission_status_saf)
                             } else if (perm.status == AppPermissionStatus.GRANTED) {
-                                "Estado actual: Concedido (acceso completo). Toca abajo para abrir los Ajustes del sistema si deseas revocarlo o inspeccionarlo."
+                                stringResource(R.string.settings_permission_status_granted)
                             } else if (perm.status == AppPermissionStatus.PARTIAL) {
-                                "Estado actual: Concedido parcialmente (acceso a fotos seleccionadas). Toca abajo para conceder acceso completo en Ajustes si lo deseas."
+                                stringResource(R.string.settings_permission_status_partial)
                             } else {
-                                "Estado actual: No concedido. Puedes solicitarlo de inmediato o abrir la configuración de la app."
+                                stringResource(R.string.settings_permission_status_denied)
                             },
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(10.dp)
@@ -729,7 +783,7 @@ fun SettingsScreen(
             confirmButton = {
                 if (perm.isSafAccess) {
                     Button(onClick = { selectedPermissionForRationale = null }) {
-                        Text("Entendido")
+                        Text(stringResource(R.string.common_understood))
                     }
                 } else if (!isGranted && perm.status != AppPermissionStatus.PARTIAL) {
                     Button(
@@ -745,7 +799,7 @@ fun SettingsScreen(
                             }
                         }
                     ) {
-                        Text("Solicitar Permiso")
+                        Text(stringResource(R.string.settings_permission_action_request))
                     }
                 } else {
                     Button(
@@ -754,7 +808,7 @@ fun SettingsScreen(
                             context.startActivity(PermissionHelper.createAppSettingsIntent(context))
                         }
                     ) {
-                        Text("Ajustes de Android")
+                        Text(stringResource(R.string.settings_permission_action_android_settings))
                     }
                 }
             },
@@ -766,11 +820,11 @@ fun SettingsScreen(
                             context.startActivity(PermissionHelper.createAppSettingsIntent(context))
                         }
                     ) {
-                        Text("Ajustes del Sistema")
+                        Text(stringResource(R.string.settings_permission_action_system_settings))
                     }
-                } else if (!perm.isSafAccess && (isGranted || perm.status == AppPermissionStatus.PARTIAL)) {
+                } else if (!perm.isSafAccess) {
                     OutlinedButton(onClick = { selectedPermissionForRationale = null }) {
-                        Text("Cerrar")
+                        Text(stringResource(R.string.common_close))
                     }
                 }
             }
@@ -836,10 +890,10 @@ private fun PermissionRowItem(
                     ) {
                         Text(
                             text = when {
-                                item.isSafAccess -> "Nativo (SAF)"
-                                item.status == AppPermissionStatus.GRANTED -> "Concedido"
-                                item.status == AppPermissionStatus.PARTIAL -> "Parcial (Seleccionadas)"
-                                else -> "No concedido"
+                                item.isSafAccess -> stringResource(R.string.settings_permission_badge_saf)
+                                item.status == AppPermissionStatus.GRANTED -> stringResource(R.string.settings_permission_badge_granted)
+                                item.status == AppPermissionStatus.PARTIAL -> stringResource(R.string.settings_permission_badge_partial)
+                                else -> stringResource(R.string.settings_permission_badge_denied)
                             },
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
@@ -862,7 +916,7 @@ private fun PermissionRowItem(
             Spacer(modifier = Modifier.width(8.dp))
             Icon(
                 imageVector = if (isGranted) Icons.AutoMirrored.Filled.OpenInNew else Icons.Default.Warning,
-                contentDescription = if (isGranted) "Abrir ajustes" else "Atención",
+                contentDescription = if (isGranted) stringResource(R.string.settings_open_saf_button) else stringResource(R.string.settings_open_saf_warning),
                 tint = if (isGranted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(20.dp)
             )

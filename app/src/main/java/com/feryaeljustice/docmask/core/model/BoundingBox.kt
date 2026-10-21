@@ -1,5 +1,8 @@
 package com.feryaeljustice.docmask.core.model
 
+import android.graphics.Rect
+import android.graphics.RectF
+
 /**
  * Immutable representation of a rectangular region on a document image.
  * Coordinates are represented as floats, either in normalized range [0.0, 1.0]
@@ -27,4 +30,22 @@ data class BoundingBox(
         return left < other.right && right > other.left &&
                 top < other.bottom && bottom > other.top
     }
+
+    fun toRect(): Rect = Rect(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
+
+    fun toRectF(): RectF = RectF(left, top, right, bottom)
 }
+
+fun Rect.toBoundingBox(): BoundingBox = BoundingBox(
+    left = left.toFloat(),
+    top = top.toFloat(),
+    right = right.toFloat(),
+    bottom = bottom.toFloat()
+)
+
+fun RectF.toBoundingBox(): BoundingBox = BoundingBox(
+    left = left,
+    top = top,
+    right = right,
+    bottom = bottom
+)

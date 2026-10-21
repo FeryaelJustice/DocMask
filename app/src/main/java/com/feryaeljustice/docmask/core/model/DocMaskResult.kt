@@ -16,6 +16,27 @@ sealed interface DocMaskResult<out T> {
     }
 }
 
+inline fun <T> DocMaskResult<T>.onSuccess(action: (value: T) -> Unit): DocMaskResult<T> {
+    if (this is DocMaskResult.Success) {
+        action(data)
+    }
+    return this
+}
+
+inline fun <T> DocMaskResult<T>.onFailure(action: (error: DocMaskError) -> Unit): DocMaskResult<T> {
+    if (this is DocMaskResult.Failure) {
+        action(error)
+    }
+    return this
+}
+
+inline fun <T, R> DocMaskResult<T>.map(transform: (value: T) -> R): DocMaskResult<R> {
+    return when (this) {
+        is DocMaskResult.Success -> DocMaskResult.Success(transform(data))
+        is DocMaskResult.Failure -> DocMaskResult.Failure(error)
+    }
+}
+
 sealed class DocMaskError(open val message: String, open val cause: Throwable? = null) {
     data class ImageProcessingFailed(override val message: String, override val cause: Throwable? = null) :
         DocMaskError(message, cause)

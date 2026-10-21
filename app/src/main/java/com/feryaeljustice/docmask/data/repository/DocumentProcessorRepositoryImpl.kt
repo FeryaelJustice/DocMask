@@ -3,6 +3,7 @@ package com.feryaeljustice.docmask.data.repository
 import android.graphics.Bitmap
 import android.graphics.Rect
 import com.feryaeljustice.docmask.core.model.BoundingBox
+import com.feryaeljustice.docmask.core.model.toBoundingBox
 import com.feryaeljustice.docmask.core.model.DocMaskError
 import com.feryaeljustice.docmask.core.model.DocMaskResult
 import com.feryaeljustice.docmask.core.model.MaskingOptions
@@ -95,15 +96,6 @@ class DocumentProcessorRepositoryImpl(
                 )
             )
         }
-    }
-
-    private fun Rect.toBoundingBox(): BoundingBox {
-        return BoundingBox(
-            left = this.left.toFloat(),
-            top = this.top.toFloat(),
-            right = this.right.toFloat(),
-            bottom = this.bottom.toFloat()
-        )
     }
 
     private suspend fun <T> Task<T>.awaitResult(): T = suspendCancellableCoroutine { continuation ->

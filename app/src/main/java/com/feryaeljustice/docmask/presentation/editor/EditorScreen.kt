@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -113,11 +114,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.feryaeljustice.docmask.R
 import com.feryaeljustice.docmask.core.model.DocumentSide
 import com.feryaeljustice.docmask.core.model.RedactionArea
 import com.feryaeljustice.docmask.core.util.CameraCaptureHelper
@@ -131,6 +134,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
+import kotlin.time.Duration.Companion.milliseconds
 
 fun getFileNameFromUri(context: Context, uri: Uri): String {
     var name = "documento.pdf"
@@ -149,6 +153,7 @@ fun getFileNameFromUri(context: Context, uri: Uri): String {
  * on compact phones and NavigationRail on tablets/foldables.
  */
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("LocalContextGetResourceValueCall")
 @Composable
 fun DocMaskApp(
     viewModel: EditorViewModel = koinViewModel()
@@ -158,6 +163,9 @@ fun DocMaskApp(
     var showManualEditorDialog by rememberSaveable { mutableStateOf(false) }
     var showPhotoSourceSheet by remember { mutableStateOf(false) }
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    var pendingCropBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var pendingCropSide by remember { mutableStateOf<DocumentSide?>(null) }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -172,7 +180,7 @@ fun DocMaskApp(
     ) { success: Boolean ->
         if (success) {
             tempCameraUri?.let { uri ->
-                viewModel.onEvent(EditorUiEvent.SetLoading(true, "Procesando foto de cámara..."))
+                viewModel.onEvent(EditorUiEvent.SetLoading(true, context.getString(R.string.editor_loading_camera)))
                 coroutineScope.launch {
                     try {
                         val bitmap: Bitmap = withContext(Dispatchers.IO) {
@@ -185,9 +193,12 @@ fun DocMaskApp(
                                 MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
                             }
                         }
-                        viewModel.onEvent(EditorUiEvent.ImageSelected(bitmap, uiState.activeSide))
+                        viewModel.onEvent(EditorUiEvent.SetLoading(false))
+                        pendingCropSide = uiState.activeSide
+                        pendingCropBitmap = bitmap
                     } catch (e: Exception) {
-                        viewModel.onEvent(EditorUiEvent.ShowError("Error al procesar foto de cámara: ${e.message}"))
+                        viewModel.onEvent(EditorUiEvent.SetLoading(false))
+                        viewModel.onEvent(EditorUiEvent.ShowError(context.getString(R.string.editor_error_camera_process, e.message.orEmpty())))
                     }
                 }
             }
@@ -204,14 +215,14 @@ fun DocMaskApp(
                 tempCameraUri = uri
                 cameraLauncher.launch(uri)
             } catch (e: Exception) {
-                Toast.makeText(context, "No se pudo iniciar la cámara: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.editor_error_camera_launch, e.message.orEmpty()), Toast.LENGTH_SHORT).show()
             }
         } else {
             val shouldShowRationale = PermissionHelper.shouldShowCameraRationale(context)
             if (!shouldShowRationale) {
                 showCameraPermanentDenialDialog = true
             } else {
-                Toast.makeText(context, "Permiso de cámara no concedido.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.editor_permission_camera_denied), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -220,7 +231,7 @@ fun DocMaskApp(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let {
-            viewModel.onEvent(EditorUiEvent.SetLoading(true, "Cargando imagen..."))
+            viewModel.onEvent(EditorUiEvent.SetLoading(true, context.getString(R.string.editor_loading_image)))
             coroutineScope.launch {
                 try {
                     val bitmap: Bitmap = withContext(Dispatchers.IO) {
@@ -233,9 +244,12 @@ fun DocMaskApp(
                             MediaStore.Images.Media.getBitmap(context.contentResolver, it)
                         }
                     }
-                    viewModel.onEvent(EditorUiEvent.ImageSelected(bitmap, uiState.activeSide))
+                    viewModel.onEvent(EditorUiEvent.SetLoading(false))
+                    pendingCropSide = uiState.activeSide
+                    pendingCropBitmap = bitmap
                 } catch (e: Exception) {
-                    viewModel.onEvent(EditorUiEvent.ShowError("Error al cargar imagen: ${e.message}"))
+                    viewModel.onEvent(EditorUiEvent.SetLoading(false))
+                    viewModel.onEvent(EditorUiEvent.ShowError(context.getString(R.string.editor_error_image_load, e.message.orEmpty())))
                 }
             }
         }
@@ -255,7 +269,7 @@ fun DocMaskApp(
             if (!shouldShowRationale) {
                 showMediaPermanentDenialDialog = true
             } else {
-                Toast.makeText(context, "Permiso de galería no concedido.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.editor_permission_gallery_denied), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -267,7 +281,7 @@ fun DocMaskApp(
                 tempCameraUri = uri
                 cameraLauncher.launch(uri)
             } catch (e: Exception) {
-                Toast.makeText(context, "No se pudo iniciar la cámara: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.editor_error_camera_launch, e.message.orEmpty()), Toast.LENGTH_SHORT).show()
             }
         } else if (PermissionHelper.shouldShowCameraRationale(context)) {
             showCameraRationaleDialog = true
@@ -294,7 +308,7 @@ fun DocMaskApp(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let { pdfUri ->
-            viewModel.onEvent(EditorUiEvent.SetLoading(true, "Cargando documento PDF..."))
+            viewModel.onEvent(EditorUiEvent.SetLoading(true, context.getString(R.string.editor_loading_pdf)))
             coroutineScope.launch {
                 try {
                     val fileName = getFileNameFromUri(context, pdfUri)
@@ -303,13 +317,13 @@ fun DocMaskApp(
                     }
                     val pages = pagesResult.getOrThrow()
                     if (pages.isEmpty()) {
-                        viewModel.onEvent(EditorUiEvent.ShowError("El documento PDF no contiene páginas válidas."))
+                        viewModel.onEvent(EditorUiEvent.ShowError(context.getString(R.string.editor_error_pdf_invalid)))
                         return@launch
                     }
 
                     viewModel.onEvent(EditorUiEvent.PdfSelected(fileName, pages, emptyList()))
                 } catch (e: Exception) {
-                    viewModel.onEvent(EditorUiEvent.ShowError("Error al importar PDF: ${e.message}"))
+                    viewModel.onEvent(EditorUiEvent.ShowError(context.getString(R.string.editor_error_pdf_import, e.message.orEmpty())))
                 }
             }
         }
@@ -335,7 +349,7 @@ fun DocMaskApp(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "Seleccionar origen de la imagen",
+                    text = stringResource(R.string.editor_photo_source_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -348,7 +362,7 @@ fun DocMaskApp(
                 ) {
                     Icon(Icons.Default.CameraAlt, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Hacer foto con la cámara")
+                    Text(stringResource(R.string.editor_photo_source_camera))
                 }
                 OutlinedButton(
                     onClick = {
@@ -359,7 +373,7 @@ fun DocMaskApp(
                 ) {
                     Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Elegir de la galería")
+                    Text(stringResource(R.string.editor_photo_source_gallery))
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -372,13 +386,13 @@ fun DocMaskApp(
             icon = { Icon(Icons.Default.AddPhotoAlternate, contentDescription = null) },
             title = {
                 Text(
-                    text = "Acceso a Fotos y Galería",
+                    text = stringResource(R.string.dialog_media_permission_title),
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
-                    text = "DocMask necesita acceder a tus imágenes para cargar el documento a anonimizar. Puedes conceder acceso a ciertas fotos seleccionadas o a toda tu galería. El procesamiento es 100% local."
+                    text = stringResource(R.string.dialog_media_permission_message)
                 )
             },
             confirmButton = {
@@ -390,12 +404,12 @@ fun DocMaskApp(
                         )
                     }
                 ) {
-                    Text("Conceder Permiso")
+                    Text(stringResource(R.string.dialog_grant_permission))
                 }
             },
             dismissButton = {
                 OutlinedButton(onClick = { showMediaRationaleDialog = false }) {
-                    Text("Cancelar")
+                    Text(stringResource(R.string.common_cancel))
                 }
             }
         )
@@ -407,13 +421,13 @@ fun DocMaskApp(
             icon = { Icon(Icons.Default.Warning, contentDescription = null) },
             title = {
                 Text(
-                    text = "Permiso de Fotos Bloqueado",
+                    text = stringResource(R.string.dialog_media_denied_title),
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
-                    text = "El acceso a la galería está bloqueado en Android. Para seleccionar documentos desde tus fotos, concede el permiso en Ajustes de la aplicación."
+                    text = stringResource(R.string.dialog_media_denied_message)
                 )
             },
             confirmButton = {
@@ -423,12 +437,12 @@ fun DocMaskApp(
                         context.startActivity(PermissionHelper.createAppSettingsIntent(context))
                     }
                 ) {
-                    Text("Abrir Ajustes")
+                    Text(stringResource(R.string.dialog_open_settings))
                 }
             },
             dismissButton = {
                 OutlinedButton(onClick = { showMediaPermanentDenialDialog = false }) {
-                    Text("Cancelar")
+                    Text(stringResource(R.string.common_cancel))
                 }
             }
         )
@@ -440,13 +454,13 @@ fun DocMaskApp(
             icon = { Icon(Icons.Default.CameraAlt, contentDescription = null) },
             title = {
                 Text(
-                    text = "Permiso de Cámara Requerido",
+                    text = stringResource(R.string.dialog_camera_permission_title),
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
-                    text = "DocMask necesita acceder a la cámara únicamente para fotografiar tu documento de identidad y anonimizarlo en tu dispositivo. La imagen no se sube a internet ni se comparte con nadie."
+                    text = stringResource(R.string.dialog_camera_permission_message)
                 )
             },
             confirmButton = {
@@ -456,12 +470,12 @@ fun DocMaskApp(
                         cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
                     }
                 ) {
-                    Text("Conceder Permiso")
+                    Text(stringResource(R.string.dialog_grant_permission))
                 }
             },
             dismissButton = {
                 OutlinedButton(onClick = { showCameraRationaleDialog = false }) {
-                    Text("Cancelar")
+                    Text(stringResource(R.string.common_cancel))
                 }
             }
         )
@@ -473,13 +487,13 @@ fun DocMaskApp(
             icon = { Icon(Icons.Default.Warning, contentDescription = null) },
             title = {
                 Text(
-                    text = "Permiso Bloqueado",
+                    text = stringResource(R.string.dialog_camera_denied_title),
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
-                    text = "El permiso de cámara está deshabilitado en Android. Para tomar fotos directamente desde la app, habilítalo en la sección de Permisos de la configuración del sistema."
+                    text = stringResource(R.string.dialog_camera_denied_message)
                 )
             },
             confirmButton = {
@@ -489,12 +503,12 @@ fun DocMaskApp(
                         context.startActivity(PermissionHelper.createAppSettingsIntent(context))
                     }
                 ) {
-                    Text("Abrir Ajustes")
+                    Text(stringResource(R.string.dialog_open_settings))
                 }
             },
             dismissButton = {
                 OutlinedButton(onClick = { showCameraPermanentDenialDialog = false }) {
-                    Text("Cancelar")
+                    Text(stringResource(R.string.common_cancel))
                 }
             }
         )
@@ -505,22 +519,22 @@ fun DocMaskApp(
             item(
                 selected = currentDestination == "editor",
                 onClick = { currentDestination = "editor" },
-                icon = { Icon(Icons.Default.Description, contentDescription = "Editor") },
-                label = { Text("Editor") },
+                icon = { Icon(Icons.Default.Description, contentDescription = stringResource(R.string.nav_editor)) },
+                label = { Text(stringResource(R.string.nav_editor)) },
                 modifier = Modifier.testTag("nav_item_editor")
             )
             item(
                 selected = currentDestination == "templates",
                 onClick = { currentDestination = "templates" },
-                icon = { Icon(Icons.Default.Security, contentDescription = "Plantillas") },
-                label = { Text("Plantillas") },
+                icon = { Icon(Icons.Default.Security, contentDescription = stringResource(R.string.nav_templates)) },
+                label = { Text(stringResource(R.string.nav_templates)) },
                 modifier = Modifier.testTag("nav_item_templates")
             )
             item(
                 selected = currentDestination == "settings" || currentDestination == "pro",
                 onClick = { currentDestination = "settings" },
-                icon = { Icon(Icons.Default.Settings, contentDescription = "Ajustes") },
-                label = { Text("Ajustes") },
+                icon = { Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.nav_settings)) },
+                label = { Text(stringResource(R.string.nav_settings)) },
                 modifier = Modifier.testTag("nav_item_settings")
             )
         }
@@ -548,7 +562,7 @@ fun DocMaskApp(
                 Scaffold(
                     topBar = {
                         TopAppBar(
-                            title = { Text("DocMask") },
+                            title = { Text(stringResource(R.string.app_name)) },
                             actions = {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
@@ -567,7 +581,7 @@ fun DocMaskApp(
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = "100% Offline",
+                                            text = stringResource(R.string.editor_offline_badge),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Bold
@@ -638,7 +652,7 @@ fun DocMaskApp(
                                     onPickDocument = onPickDocumentAction,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(280.dp)
+                                        .heightIn(min = 280.dp, max = 340.dp)
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 EditorControlsPane(
@@ -671,7 +685,7 @@ fun DocMaskApp(
                                         )
                                         Spacer(modifier = Modifier.height(16.dp))
                                         Text(
-                                            text = uiState.loadingMessage ?: "Procesando documento...",
+                                            text = uiState.loadingMessage ?: stringResource(R.string.editor_loading_default),
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurface,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -685,13 +699,13 @@ fun DocMaskApp(
                         uiState.errorMessage?.let { error ->
                             androidx.compose.material3.AlertDialog(
                                 onDismissRequest = { viewModel.onEvent(EditorUiEvent.DismissError) },
-                                title = { Text("Aviso de Error") },
+                                title = { Text(stringResource(R.string.common_error)) },
                                 text = { Text(error) },
                                 confirmButton = {
                                     androidx.compose.material3.TextButton(
                                         onClick = { viewModel.onEvent(EditorUiEvent.DismissError) }
                                     ) {
-                                        Text("Entendido")
+                                        Text(stringResource(R.string.common_understood))
                                     }
                                 }
                             )
@@ -701,13 +715,13 @@ fun DocMaskApp(
                         uiState.exportSuccessMessage?.let { successMsg ->
                             androidx.compose.material3.AlertDialog(
                                 onDismissRequest = { viewModel.onEvent(EditorUiEvent.DismissSuccessMessage) },
-                                title = { Text("Operación Exitosa") },
+                                title = { Text(stringResource(R.string.common_success)) },
                                 text = { Text(successMsg) },
                                 confirmButton = {
                                     androidx.compose.material3.TextButton(
                                         onClick = { viewModel.onEvent(EditorUiEvent.DismissSuccessMessage) }
                                     ) {
-                                        Text("Aceptar")
+                                        Text(stringResource(R.string.common_accept))
                                     }
                                 }
                             )
@@ -726,6 +740,23 @@ fun DocMaskApp(
                                 }
                             )
                         }
+
+                        // Image Cropping Modal (Before OCR / Masking)
+                        pendingCropBitmap?.let { rawBitmap ->
+                            ImageCropDialog(
+                                sourceBitmap = rawBitmap,
+                                onDismiss = {
+                                    pendingCropBitmap = null
+                                    pendingCropSide = null
+                                },
+                                onCropConfirmed = { cropped ->
+                                    val targetSide = pendingCropSide ?: uiState.activeSide
+                                    pendingCropBitmap = null
+                                    pendingCropSide = null
+                                    viewModel.onEvent(EditorUiEvent.ImageSelected(cropped, targetSide))
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -738,8 +769,8 @@ fun DocMaskApp(
 fun DocumentViewerPane(
     uiState: EditorUiState,
     onEvent: (EditorUiEvent) -> Unit,
-    onPickDocument: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onPickDocument: () -> Unit = {}
 ) {
     Card(
         modifier = modifier,
@@ -769,7 +800,7 @@ fun DocumentViewerPane(
                         },
                         label = {
                             Text(
-                                text = "1 Cara",
+                                text = stringResource(R.string.editor_mode_single),
                                 maxLines = 1,
                                 style = MaterialTheme.typography.labelMedium
                             )
@@ -790,7 +821,7 @@ fun DocumentViewerPane(
                         },
                         label = {
                             Text(
-                                text = "2 Caras",
+                                text = stringResource(R.string.editor_mode_dual),
                                 maxLines = 1,
                                 style = MaterialTheme.typography.labelMedium
                             )
@@ -811,7 +842,7 @@ fun DocumentViewerPane(
                         },
                         label = {
                             Text(
-                                text = "PDF",
+                                text = stringResource(R.string.editor_mode_pdf),
                                 maxLines = 1,
                                 style = MaterialTheme.typography.labelMedium
                             )
@@ -830,12 +861,12 @@ fun DocumentViewerPane(
                         onClick = { onEvent(EditorUiEvent.SelectDocumentSide(DocumentSide.FRONT)) },
                         text = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Anverso")
+                                Text(stringResource(R.string.editor_side_front))
                                 if (uiState.hasFront) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Icon(
                                         imageVector = Icons.Default.Check,
-                                        contentDescription = "Cargado",
+                                        contentDescription = stringResource(R.string.editor_loaded_badge),
                                         modifier = Modifier.size(16.dp),
                                         tint = MaterialTheme.colorScheme.primary
                                     )
@@ -848,12 +879,12 @@ fun DocumentViewerPane(
                         onClick = { onEvent(EditorUiEvent.SelectDocumentSide(DocumentSide.BACK)) },
                         text = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Reverso")
+                                Text(stringResource(R.string.editor_side_back))
                                 if (uiState.hasBack) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Icon(
                                         imageVector = Icons.Default.Check,
-                                        contentDescription = "Cargado",
+                                        contentDescription = stringResource(R.string.editor_loaded_badge),
                                         modifier = Modifier.size(16.dp),
                                         tint = MaterialTheme.colorScheme.primary
                                     )
@@ -906,13 +937,17 @@ fun DocumentViewerPane(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "${uiState.pdfPageCount} páginas • ${uiState.pdfDetectedRegions.size} campos de riesgo identificados",
+                                text = stringResource(
+                                    R.string.editor_pdf_summary,
+                                    uiState.pdfPageCount,
+                                    uiState.pdfDetectedRegions.size
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             OutlinedButton(onClick = onPickDocument) {
-                                Text("Cambiar Documento PDF")
+                                Text(stringResource(R.string.editor_pdf_change))
                             }
                         }
                     } else {
@@ -921,7 +956,8 @@ fun DocumentViewerPane(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center,
                             modifier = Modifier
-                                .fillMaxSize()
+                                .fillMaxWidth()
+                                .defaultMinSize(minHeight = 240.dp)
                                 .clickable { onPickDocument() }
                                 .padding(24.dp)
                         ) {
@@ -933,12 +969,12 @@ fun DocumentViewerPane(
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "Selecciona un documento PDF para proteger",
+                                text = stringResource(R.string.editor_pdf_placeholder_title),
                                 style = MaterialTheme.typography.titleMedium
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Procesamiento 100% offline página por página",
+                                text = stringResource(R.string.editor_pdf_placeholder_subtitle),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -949,7 +985,7 @@ fun DocumentViewerPane(
                             ) {
                                 Icon(Icons.Default.FolderOpen, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Cargar Documento PDF")
+                                Text(stringResource(R.string.editor_pdf_load_button))
                             }
                         }
                     }
@@ -957,23 +993,44 @@ fun DocumentViewerPane(
                     // Bitmap Photo / DNI Viewer
                     val bitmap = uiState.currentMaskedBitmap ?: uiState.currentOriginalBitmap
                     if (bitmap != null) {
-                        Image(
-                            bitmap = bitmap.asImageBitmap(),
-                            contentDescription = if (uiState.isDualSidedMode) {
-                                "Documento protegido (${uiState.activeSide.displayName})"
-                            } else "Documento protegido",
+                        Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .clip(RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp))
-                                .clickable { onPickDocument() },
-                            contentScale = ContentScale.Fit
-                        )
+                                .clip(RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = if (uiState.isDualSidedMode) {
+                                    stringResource(R.string.editor_content_desc_protected_side, uiState.activeSide.getLabel())
+                                } else stringResource(R.string.editor_content_desc_protected),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable { onPickDocument() },
+                                contentScale = ContentScale.Fit
+                            )
+                            if (uiState.isMaskingPreviewLoading) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Black.copy(alpha = 0.28f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(40.dp),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        strokeWidth = 3.dp
+                                    )
+                                }
+                            }
+                        }
                     } else {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center,
                             modifier = Modifier
-                                .fillMaxSize()
+                                .fillMaxWidth()
+                                .defaultMinSize(minHeight = 240.dp)
                                 .clickable { onPickDocument() }
                                 .padding(24.dp)
                         ) {
@@ -986,15 +1043,15 @@ fun DocumentViewerPane(
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
                                 text = if (uiState.isDualSidedMode) {
-                                    "Cargar ${uiState.activeSide.displayName}"
-                                } else "Selecciona un documento para proteger",
+                                    stringResource(R.string.editor_load_side, uiState.activeSide.getLabel())
+                                } else stringResource(R.string.editor_select_document_placeholder),
                                 style = MaterialTheme.typography.titleMedium
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = if (uiState.isDualSidedMode) {
-                                    "Pulsa para adjuntar la foto del ${uiState.activeSide.displayName.lowercase()}"
-                                } else "Procesamiento 100% offline y seguro",
+                                    stringResource(R.string.editor_tap_to_attach_side, uiState.activeSide.getLabel())
+                                } else stringResource(R.string.editor_offline_secure_hint),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1006,8 +1063,9 @@ fun DocumentViewerPane(
                                 Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    if (uiState.isDualSidedMode) "Cargar ${uiState.activeSide.displayName}"
-                                    else "Cargar Documento"
+                                    if (uiState.isDualSidedMode) {
+                                        stringResource(R.string.editor_load_side, uiState.activeSide.getLabel())
+                                    } else stringResource(R.string.editor_select_document_placeholder)
                                 )
                             }
                         }
@@ -1019,14 +1077,15 @@ fun DocumentViewerPane(
 }
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@Suppress("LocalContextGetResourceValueCall")
 @Composable
 fun EditorControlsPane(
     uiState: EditorUiState,
     onEvent: (EditorUiEvent) -> Unit,
+    modifier: Modifier = Modifier,
     onPickDocument: () -> Unit = {},
     onNavigateToPro: () -> Unit = {},
-    onEditManualRegions: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onEditManualRegions: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -1062,7 +1121,7 @@ fun EditorControlsPane(
                     ) {
                         Image(
                             bitmap = originalThumb.asImageBitmap(),
-                            contentDescription = "Miniatura original",
+                            contentDescription = stringResource(R.string.editor_thumb_original_desc),
                             modifier = Modifier
                                 .size(52.dp)
                                 .clip(RoundedCornerShape(8.dp))
@@ -1072,12 +1131,12 @@ fun EditorControlsPane(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Original sin efecto",
+                                text = stringResource(R.string.editor_thumb_original_title),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Toca para ampliar",
+                                text = stringResource(R.string.editor_thumb_original_subtitle),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1112,7 +1171,7 @@ fun EditorControlsPane(
                     ) {
                         Icon(Icons.Default.Draw, contentDescription = null)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Zonas manuales PRO")
+                        Text(stringResource(R.string.editor_manual_zones_pro))
                     }
 
                     OutlinedButton(
@@ -1124,8 +1183,8 @@ fun EditorControlsPane(
                         Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            if (uiState.isDualSidedMode) "Cambiar ${uiState.activeSide.displayName}"
-                            else "Cambiar Documento"
+                            if (uiState.isDualSidedMode) stringResource(R.string.editor_change_side, uiState.activeSide.getLabel())
+                            else stringResource(R.string.editor_change_document)
                         )
                     }
                 }
@@ -1150,43 +1209,51 @@ fun EditorControlsPane(
 
         // Sensitive data detection header & actions
         val regions = uiState.currentDetectedRegions
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = if (uiState.isPdfMode) "Campos Identificados en PDF"
-                           else if (uiState.isDualSidedMode) "Datos en ${uiState.activeSide.displayName}"
-                           else "Datos Sensibles Detectados",
+                    text = if (uiState.isPdfMode) stringResource(R.string.editor_fields_identified_pdf)
+                           else if (uiState.isDualSidedMode) stringResource(R.string.editor_fields_side, uiState.activeSide.getLabel())
+                           else stringResource(R.string.editor_fields_detected),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "${uiState.redactedCount} de ${regions.size} campos seleccionados para pixelar",
+                    text = stringResource(R.string.editor_fields_selected_count, uiState.redactedCount, regions.size),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 OutlinedButton(
                     onClick = { onEvent(EditorUiEvent.ApplyAepdPreset) },
-                    modifier = Modifier.defaultMinSize(minHeight = 40.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .defaultMinSize(minHeight = 42.dp)
                 ) {
                     Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("AEPD")
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(stringResource(R.string.editor_aepd_button))
                 }
                 OutlinedButton(
                     onClick = {
                         val allRedacted = regions.all { it.isRedacted }
                         onEvent(EditorUiEvent.RedactAllSensitive(!allRedacted))
                     },
-                    modifier = Modifier.defaultMinSize(minHeight = 40.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .defaultMinSize(minHeight = 42.dp)
                 ) {
                     val allRedacted = regions.all { it.isRedacted }
-                    Text(if (allRedacted) "Desmarcar" else "Pixelar Todo")
+                    Text(if (allRedacted) stringResource(R.string.editor_uncheck_button) else stringResource(R.string.editor_pixelate_all))
                 }
             }
         }
@@ -1203,10 +1270,11 @@ fun EditorControlsPane(
                         selected = area.isRedacted,
                         onClick = { onEvent(EditorUiEvent.ToggleRegionRedaction(area.id)) },
                         label = {
+                            val typeLabel = area.type.getLabel()
                             val label = if (uiState.isPdfMode && area.pageIndex > 0) {
-                                "Pág ${area.pageIndex}: ${area.type.displayName}"
+                                "Pág ${area.pageIndex}: $typeLabel"
                             } else {
-                                area.type.displayName
+                                typeLabel
                             }
                             Text(label)
                         },
@@ -1235,11 +1303,11 @@ fun EditorControlsPane(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Intensidad de Pixelado / Blur",
+                        text = stringResource(R.string.editor_pixel_intensity_title),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "Ajuste uniforme para todas las áreas sensibles",
+                        text = stringResource(R.string.editor_pixel_intensity_subtitle),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1269,11 +1337,11 @@ fun EditorControlsPane(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Conversión a Escala de Grises",
+                    text = stringResource(R.string.editor_grayscale_title),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    text = "Recomendado por la AEPD contra fraudes",
+                    text = stringResource(R.string.editor_grayscale_switch_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1287,7 +1355,7 @@ fun EditorControlsPane(
 
         // Watermark section
         Text(
-            text = "Marca de Agua Cruzada",
+            text = stringResource(R.string.editor_watermark_title),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary
         )
@@ -1301,7 +1369,7 @@ fun EditorControlsPane(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "Incluir fecha de hoy en la marca",
+                        text = stringResource(R.string.editor_watermark_include_date_title),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -1310,7 +1378,7 @@ fun EditorControlsPane(
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
-                            text = "PRO",
+                            text = stringResource(R.string.common_pro_badge),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -1319,7 +1387,7 @@ fun EditorControlsPane(
                     }
                 }
                 Text(
-                    text = "Añade automáticamente el sufijo de fecha (- dd/MM/yyyy)",
+                    text = stringResource(R.string.editor_watermark_include_date_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1333,8 +1401,8 @@ fun EditorControlsPane(
         OutlinedTextField(
             value = uiState.maskingOptions.watermarkConfig.purposeText,
             onValueChange = { onEvent(EditorUiEvent.UpdateWatermarkText(it)) },
-            label = { Text("Finalidad del documento") },
-            placeholder = { Text("Ej. Copia para alquiler de vivienda") },
+            label = { Text(stringResource(R.string.editor_watermark_purpose_label_input)) },
+            placeholder = { Text(stringResource(R.string.editor_watermark_purpose_placeholder_input)) },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -1346,7 +1414,7 @@ fun EditorControlsPane(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Opacidad de la marca",
+                text = stringResource(R.string.editor_watermark_opacity_label),
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
@@ -1374,13 +1442,13 @@ fun EditorControlsPane(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Plantillas Rápidas (Favoritas)",
+                    text = stringResource(R.string.editor_templates_favorites_header),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (uiState.favoriteTemplates.isEmpty()) {
                     Text(
-                        text = "Predeterminadas (Marca ⭐ en Plantillas)",
+                        text = stringResource(R.string.editor_templates_default_hint),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
@@ -1401,7 +1469,7 @@ fun EditorControlsPane(
                                 {
                                     Icon(
                                         imageVector = Icons.Default.Star,
-                                        contentDescription = "Favorita",
+                                        contentDescription = stringResource(R.string.editor_favorite_template_desc),
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(16.dp)
                                     )
@@ -1415,12 +1483,63 @@ fun EditorControlsPane(
                         ) {
                             Icon(
                                 imageVector = if (template.isFavorite) Icons.Default.Star else Icons.Outlined.StarOutline,
-                                contentDescription = "Alternar favorito",
+                                contentDescription = stringResource(R.string.editor_toggle_favorite_desc),
                                 tint = if (template.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
                     }
+                }
+            }
+        }
+
+        // Single-sided PDF generation toggle (PRO)
+        if (uiState.inputMode == InputMode.SINGLE_PHOTO) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.25f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = stringResource(R.string.editor_pdf_single_title),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.common_pro_badge),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = stringResource(R.string.editor_pdf_single_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = uiState.generatePdfForSingleSide,
+                        onCheckedChange = { onEvent(EditorUiEvent.ToggleGeneratePdfSingleSide(it)) }
+                    )
                 }
             }
         }
@@ -1444,7 +1563,7 @@ fun EditorControlsPane(
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Unir Anverso y Reverso en PDF",
+                                text = stringResource(R.string.editor_pdf_dual_title),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1454,7 +1573,7 @@ fun EditorControlsPane(
                                 shape = RoundedCornerShape(6.dp)
                             ) {
                                 Text(
-                                    text = "PRO",
+                                    text = stringResource(R.string.common_pro_badge),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -1463,7 +1582,7 @@ fun EditorControlsPane(
                             }
                         }
                         Text(
-                            text = "Genera un único archivo PDF unificado de 2 páginas con ambas caras protegidas.",
+                            text = stringResource(R.string.editor_pdf_dual_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1490,12 +1609,12 @@ fun EditorControlsPane(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Cuota diaria de exportación:",
+                    text = stringResource(R.string.editor_daily_quota_title),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "${uiState.dailyExportsRemaining} de ${uiState.dailyExportsLimit} restantes hoy",
+                    text = stringResource(R.string.editor_daily_quota_remaining, uiState.dailyExportsRemaining, uiState.dailyExportsLimit),
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold,
                     color = if (uiState.dailyExportsRemaining > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
@@ -1508,16 +1627,16 @@ fun EditorControlsPane(
             onClick = {
                 if (uiState.dailyExportsRemaining <= 0) {
                     val limitMsg = if (uiState.isProUser) {
-                        "Has alcanzado el límite diario de ${uiState.dailyExportsLimit} documentos protegidos."
+                        context.getString(R.string.editor_daily_quota_limit_pro, uiState.dailyExportsLimit)
                     } else {
-                        "Has alcanzado tu límite gratuito de ${uiState.dailyExportsLimit} documentos al día. Actualiza a Pro en Ajustes para exportar hasta 40 documentos diarios."
+                        context.getString(R.string.editor_daily_quota_limit_free, uiState.dailyExportsLimit)
                     }
                     Toast.makeText(context, limitMsg, Toast.LENGTH_LONG).show()
                     return@Button
                 }
 
                 coroutineScope.launch {
-                    onEvent(EditorUiEvent.SetLoading(true, "Exportando y preparando documento seguro..."))
+                    onEvent(EditorUiEvent.SetLoading(true, context.getString(R.string.editor_exporting_loading)))
                     try {
                         if (uiState.isPdfMode) {
                             val pages = uiState.pdfMaskedPagesBitmaps.ifEmpty { uiState.pdfPagesBitmaps }
@@ -1537,17 +1656,17 @@ fun EditorControlsPane(
                                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                             type = "application/pdf"
                                             putExtra(Intent.EXTRA_STREAM, uri)
-                                            putExtra(Intent.EXTRA_SUBJECT, "Documento PDF protegido con DocMask")
+                                            putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.share_subject_single_pdf))
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                         }
-                                        context.startActivity(Intent.createChooser(shareIntent, "Compartir PDF protegido").apply {
+                                        context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.share_chooser_single_pdf)).apply {
                                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                         })
                                     }
                                     onEvent(EditorUiEvent.ExportDocument)
                                 } else {
-                                    Toast.makeText(context, "Error al procesar PDF: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, context.getString(R.string.editor_error_export, result.exceptionOrNull()?.message.orEmpty()), Toast.LENGTH_LONG).show()
                                 }
                             } else {
                                 onEvent(EditorUiEvent.SetLoading(false))
@@ -1555,12 +1674,12 @@ fun EditorControlsPane(
                         } else if (uiState.isDualSidedMode) {
                             if (!uiState.hasFront) {
                                 onEvent(EditorUiEvent.SetLoading(false))
-                                Toast.makeText(context, "Falta adjuntar el anverso del documento", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.editor_missing_front), Toast.LENGTH_SHORT).show()
                                 return@launch
                             }
                             if (!uiState.hasBack) {
                                 onEvent(EditorUiEvent.SetLoading(false))
-                                Toast.makeText(context, "Falta adjuntar el reverso del documento", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.editor_missing_back), Toast.LENGTH_SHORT).show()
                                 return@launch
                             }
                             val frontExport = uiState.maskedBitmap ?: uiState.originalBitmap
@@ -1579,7 +1698,7 @@ fun EditorControlsPane(
                                     if (pdfResult.isSuccess) {
                                         onEvent(EditorUiEvent.ExportDocument)
                                     } else {
-                                        Toast.makeText(context, "Error al exportar PDF: ${pdfResult.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(context, context.getString(R.string.editor_error_export, pdfResult.exceptionOrNull()?.message.orEmpty()), Toast.LENGTH_LONG).show()
                                     }
                                 } else {
                                     val result = withContext(Dispatchers.IO) {
@@ -1594,7 +1713,7 @@ fun EditorControlsPane(
                                     if (result.isSuccess) {
                                         onEvent(EditorUiEvent.ExportDocument)
                                     } else {
-                                        Toast.makeText(context, "Error al exportar: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(context, context.getString(R.string.editor_error_export, result.exceptionOrNull()?.message.orEmpty()), Toast.LENGTH_LONG).show()
                                     }
                                 }
                             } else {
@@ -1604,26 +1723,34 @@ fun EditorControlsPane(
                             val bitmapToExport = uiState.maskedBitmap ?: uiState.originalBitmap
                             if (bitmapToExport != null) {
                                 val result = withContext(Dispatchers.IO) {
-                                    DocumentExporter.exportAndShareBitmap(
-                                        context = context,
-                                        bitmap = bitmapToExport,
-                                        customStorageUri = uiState.customStorageUri
-                                    )
+                                    if (uiState.generatePdfForSingleSide) {
+                                        DocumentExporter.exportAndShareSinglePdf(
+                                            context = context,
+                                            bitmap = bitmapToExport,
+                                            customStorageUri = uiState.customStorageUri
+                                        )
+                                    } else {
+                                        DocumentExporter.exportAndShareBitmap(
+                                            context = context,
+                                            bitmap = bitmapToExport,
+                                            customStorageUri = uiState.customStorageUri
+                                        )
+                                    }
                                 }
                                 onEvent(EditorUiEvent.SetLoading(false))
                                 if (result.isSuccess) {
                                     onEvent(EditorUiEvent.ExportDocument)
                                 } else {
-                                    Toast.makeText(context, "Error al exportar: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, context.getString(R.string.editor_error_export, result.exceptionOrNull()?.message.orEmpty()), Toast.LENGTH_LONG).show()
                                 }
                             } else {
                                 onEvent(EditorUiEvent.SetLoading(false))
-                                Toast.makeText(context, "Primero carga un documento para exportar", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.editor_missing_document), Toast.LENGTH_SHORT).show()
                             }
                         }
                     } catch (e: Exception) {
                         onEvent(EditorUiEvent.SetLoading(false))
-                        Toast.makeText(context, "Error inesperado al exportar: ${e.message}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, context.getString(R.string.editor_error_export_unexpected, e.message.orEmpty()), Toast.LENGTH_LONG).show()
                     }
                 }
             },
@@ -1638,69 +1765,13 @@ fun EditorControlsPane(
             Icon(Icons.Default.FileDownload, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                if (uiState.isPdfMode) "Exportar y Compartir PDF Protegido"
-                else if (uiState.isDualSidedMode && (!uiState.hasFront || !uiState.hasBack)) "Carga Anverso y Reverso para Exportar"
-                else if (uiState.isDualSidedMode && uiState.generatePdfForDni) "Exportar DNI en PDF Combinado"
-                else if (uiState.isDualSidedMode) "Exportar DNI (2 Caras)"
-                else "Exportar Documento Seguro"
+                if (uiState.isPdfMode) stringResource(R.string.editor_export_pdf_doc)
+                else if (uiState.isDualSidedMode && (!uiState.hasFront || !uiState.hasBack)) stringResource(R.string.editor_export_dni_images)
+                else if (uiState.isDualSidedMode && uiState.generatePdfForDni) stringResource(R.string.editor_export_dni_pdf)
+                else if (uiState.isDualSidedMode) stringResource(R.string.editor_export_dni_images)
+                else if (uiState.generatePdfForSingleSide) stringResource(R.string.editor_export_single_pdf)
+                else stringResource(R.string.editor_export_single)
             )
-        }
-
-        // Dedicated "Descargar PDF" button (Enabled when PDF or combined DNI ready)
-        val canDownloadPdf = uiState.isPdfDownloadAvailable || (uiState.isPdfMode && uiState.hasDocument) || (uiState.isDualSidedMode && uiState.hasFront && uiState.hasBack)
-        if (canDownloadPdf) {
-            OutlinedButton(
-                onClick = {
-                    if (uiState.dailyExportsRemaining <= 0) {
-                        onEvent(EditorUiEvent.DownloadPdf)
-                        return@OutlinedButton
-                    }
-
-                    val bitmapsToPdf = if (uiState.isPdfMode) {
-                        uiState.pdfMaskedPagesBitmaps.ifEmpty { uiState.pdfPagesBitmaps }
-                    } else if (uiState.isDualSidedMode) {
-                        listOfNotNull(uiState.maskedBitmap ?: uiState.originalBitmap, uiState.backMaskedBitmap ?: uiState.backOriginalBitmap)
-                    } else {
-                        listOfNotNull(uiState.maskedBitmap ?: uiState.originalBitmap)
-                    }
-
-                    if (bitmapsToPdf.isNotEmpty()) {
-                        coroutineScope.launch {
-                            onEvent(EditorUiEvent.SetLoading(true, "Guardando documento PDF en almacenamiento..."))
-                            try {
-                                val result = withContext(Dispatchers.IO) {
-                                    DocumentExporter.savePdfToStorage(
-                                        context = context,
-                                        bitmaps = bitmapsToPdf,
-                                        title = if (uiState.isDualSidedMode) "docmask_dni_completo" else uiState.pdfDocumentName?.removeSuffix(".pdf") ?: "docmask_descarga",
-                                        customStorageUri = uiState.customStorageUri
-                                    )
-                                }
-                                onEvent(EditorUiEvent.SetLoading(false))
-                                if (result.isSuccess) {
-                                    Toast.makeText(context, "PDF guardado correctamente en la carpeta de destino.", Toast.LENGTH_LONG).show()
-                                    onEvent(EditorUiEvent.DownloadPdf)
-                                } else {
-                                    Toast.makeText(context, "Error al guardar PDF: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
-                                }
-                            } catch (e: Exception) {
-                                onEvent(EditorUiEvent.SetLoading(false))
-                                Toast.makeText(context, "Error al guardar PDF: ${e.message}", Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    } else {
-                        Toast.makeText(context, "Primero genera o procesa un documento para descargar su PDF.", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .defaultMinSize(minHeight = 50.dp)
-                    .testTag("button_download_pdf")
-            ) {
-                Icon(Icons.Default.PictureAsPdf, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Descargar PDF en Dispositivo")
-            }
         }
     }
 }
@@ -1712,7 +1783,8 @@ fun EditorControlsPane(
 @Composable
 fun FullScreenImagePreviewDialog(
     bitmap: Bitmap,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var isVisible by remember { mutableStateOf(false) }
 
@@ -1724,7 +1796,7 @@ fun FullScreenImagePreviewDialog(
     val closeAnimated: () -> Unit = {
         coroutineScope.launch {
             isVisible = false
-            kotlinx.coroutines.delay(220)
+            kotlinx.coroutines.delay(220.milliseconds)
             onDismiss()
         }
     }
@@ -1745,7 +1817,8 @@ fun FullScreenImagePreviewDialog(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.88f))
-                .clickable { closeAnimated() },
+                .clickable { closeAnimated() }
+                .then(modifier),
             contentAlignment = Alignment.Center
         ) {
             AnimatedVisibility(
@@ -1772,7 +1845,7 @@ fun FullScreenImagePreviewDialog(
                 ) {
                     Image(
                         bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "Vista previa original en pantalla completa",
+                        contentDescription = stringResource(R.string.editor_fullscreen_preview_desc),
                         modifier = Modifier
                             .fillMaxSize(0.92f)
                             .clip(RoundedCornerShape(16.dp))
@@ -1797,7 +1870,7 @@ fun FullScreenImagePreviewDialog(
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Cerrar vista previa",
+                    contentDescription = stringResource(R.string.editor_fullscreen_preview_close),
                     modifier = Modifier.size(28.dp)
                 )
             }

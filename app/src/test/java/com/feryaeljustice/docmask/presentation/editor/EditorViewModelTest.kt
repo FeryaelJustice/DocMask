@@ -389,6 +389,27 @@ class EditorViewModelTest {
     }
 
     @Test
+    fun givenToggleGeneratePdfSingleSide_whenUserIsNotPro_thenSetsErrorMessage() = runTest {
+        viewModel.onEvent(EditorUiEvent.ToggleGeneratePdfSingleSide(true))
+
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertFalse(state.generatePdfForSingleSide)
+            assertTrue(state.errorMessage?.contains("DocMask Pro") == true)
+        }
+    }
+
+    @Test
+    fun givenSetMaskingPreviewLoading_whenEventSent_thenUpdatesLoadingState() = runTest {
+        viewModel.onEvent(EditorUiEvent.SetMaskingPreviewLoading(true))
+
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertTrue(state.isMaskingPreviewLoading)
+        }
+    }
+
+    @Test
     fun givenRestorePurchasesDispatched_whenEventSent_thenInvokesBillingRepository() = runTest {
         coEvery { billingRepository.restorePurchases() } returns Result.success(true)
 

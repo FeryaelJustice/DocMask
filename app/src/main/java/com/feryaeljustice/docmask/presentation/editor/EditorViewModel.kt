@@ -132,6 +132,8 @@ class EditorViewModel(
             is EditorUiEvent.UpdatePixelIntensity -> onUpdatePixelIntensity(event.percent)
             is EditorUiEvent.ToggleWatermarkDate -> onToggleWatermarkDate(event.enabled)
             is EditorUiEvent.ToggleGeneratePdf -> onToggleGeneratePdf(event.enabled)
+            is EditorUiEvent.ToggleGeneratePdfSingleSide -> onToggleGeneratePdfSingleSide(event.enabled)
+            is EditorUiEvent.SetMaskingPreviewLoading -> _uiState.update { it.copy(isMaskingPreviewLoading = event.isLoading) }
             is EditorUiEvent.UpdateWatermarkText -> onUpdateWatermarkText(event.text)
             is EditorUiEvent.UpdateWatermarkOpacity -> onUpdateWatermarkOpacity(event.opacity)
             is EditorUiEvent.SelectTemplate -> onSelectTemplate(event.template)
@@ -146,7 +148,6 @@ class EditorViewModel(
             is EditorUiEvent.PurchasePro -> onPurchasePro(event.activity)
             is EditorUiEvent.RestorePurchases -> onRestorePurchases()
             is EditorUiEvent.ExportDocument -> onExportDocument()
-            is EditorUiEvent.DownloadPdf -> onDownloadPdf()
             is EditorUiEvent.RefreshPermissions -> refreshPermissions(event.context)
             is EditorUiEvent.SetLoading -> _uiState.update { it.copy(isLoading = event.isLoading, loadingMessage = event.message) }
             is EditorUiEvent.SetExporting -> _uiState.update { it.copy(isExporting = event.isExporting, loadingMessage = event.message) }
@@ -248,8 +249,7 @@ class EditorViewModel(
                 loadingMessage = "Analizando páginas de PDF...",
                 pdfDocumentName = name,
                 pdfPageCount = pages.size,
-                pdfPagesBitmaps = pages,
-                isPdfDownloadAvailable = false
+                pdfPagesBitmaps = pages
             )
         }
         viewModelScope.launch(defaultDispatcher) {
@@ -359,6 +359,16 @@ class EditorViewModel(
             return
         }
         _uiState.update { it.copy(generatePdfForDni = enabled) }
+    }
+
+    private fun onToggleGeneratePdfSingleSide(enabled: Boolean) {
+        if (!_uiState.value.isProUser && enabled) {
+            _uiState.update {
+                it.copy(errorMessage = "La generación de documento PDF en modo 1 cara es una función exclusiva de DocMask Pro.")
+            }
+            return
+        }
+        _uiState.update { it.copy(generatePdfForSingleSide = enabled) }
     }
 
     private fun onUpdateWatermarkText(text: String) {
@@ -489,6 +499,7 @@ class EditorViewModel(
 
     private fun reapplyMaskingPdf(regions: List<RedactionArea>, options: MaskingOptions) {
         maskingJob?.cancel()
+        _uiState.update { it.copy(isMaskingPreviewLoading = true) }
         maskingJob = viewModelScope.launch(defaultDispatcher) {
             val pages = _uiState.value.pdfPagesBitmaps
             val masked = pages.mapIndexed { index, pageBitmap ->
@@ -498,6 +509,7 @@ class EditorViewModel(
             }
             _uiState.update {
                 it.copy(
+                    isMaskingPreviewLoading = false,
                     pdfDetectedRegions = regions,
                     pdfMaskedPagesBitmaps = masked,
                     maskingOptions = options
@@ -508,6 +520,7 @@ class EditorViewModel(
 
     private fun reapplyMaskingAll(options: MaskingOptions) {
         maskingJob?.cancel()
+        _uiState.update { it.copy(isMaskingPreviewLoading = true) }
         maskingJob = viewModelScope.launch(defaultDispatcher) {
             val state = _uiState.value
             if (state.isPdfMode) {
@@ -520,6 +533,7 @@ class EditorViewModel(
                 }
                 _uiState.update {
                     it.copy(
+                        isMaskingPreviewLoading = false,
                         pdfMaskedPagesBitmaps = masked,
                         maskingOptions = options
                     )
@@ -543,6 +557,7 @@ class EditorViewModel(
 
             _uiState.update {
                 it.copy(
+                    isMaskingPreviewLoading = false,
                     maskingOptions = options,
                     maskedBitmap = newFrontMasked,
                     backMaskedBitmap = newBackMasked
@@ -552,18 +567,31 @@ class EditorViewModel(
     }
 
     private fun reapplyMaskingSingleSide(side: DocumentSide, regions: List<RedactionArea>, options: MaskingOptions) {
+        _uiState.update { it.copy(isMaskingPreviewLoading = true) }
         viewModelScope.launch(defaultDispatcher) {
             if (side == DocumentSide.FRONT) {
-                val orig = _uiState.value.originalBitmap ?: return@launch
+                val orig = _uiState.value.originalBitmap
+                if (orig == null) {
+                    _uiState.update { it.copy(isMaskingPreviewLoading = false) }
+                    return@launch
+                }
                 val res = applyMaskingUseCase(orig, regions, options)
                 if (res is DocMaskResult.Success) {
-                    _uiState.update { it.copy(detectedRegions = regions, maskedBitmap = res.data) }
+                    _uiState.update { it.copy(isMaskingPreviewLoading = false, detectedRegions = regions, maskedBitmap = res.data) }
+                } else {
+                    _uiState.update { it.copy(isMaskingPreviewLoading = false) }
                 }
             } else {
-                val orig = _uiState.value.backOriginalBitmap ?: return@launch
+                val orig = _uiState.value.backOriginalBitmap
+                if (orig == null) {
+                    _uiState.update { it.copy(isMaskingPreviewLoading = false) }
+                    return@launch
+                }
                 val res = applyMaskingUseCase(orig, regions, options)
                 if (res is DocMaskResult.Success) {
-                    _uiState.update { it.copy(backDetectedRegions = regions, backMaskedBitmap = res.data) }
+                    _uiState.update { it.copy(isMaskingPreviewLoading = false, backDetectedRegions = regions, backMaskedBitmap = res.data) }
+                } else {
+                    _uiState.update { it.copy(isMaskingPreviewLoading = false) }
                 }
             }
         }
@@ -583,23 +611,7 @@ class EditorViewModel(
                 return@launch
             }
             documentQuotaRepository.recordExport()
-            _uiState.update { it.copy(isExportSuccess = true, isPdfDownloadAvailable = true) }
-        }
-    }
-
-    private fun onDownloadPdf() {
-        viewModelScope.launch {
-            if (!documentQuotaRepository.canExportToday(_uiState.value.isProUser)) {
-                val limit = _uiState.value.dailyExportsLimit
-                _uiState.update {
-                    it.copy(
-                        quotaExceeded = true,
-                        errorMessage = "Has alcanzado el límite diario de $limit documentos."
-                    )
-                }
-                return@launch
-            }
-            _uiState.update { it.copy(isPdfDownloadAvailable = true) }
+            _uiState.update { it.copy(isExportSuccess = true) }
         }
     }
 

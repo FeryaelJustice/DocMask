@@ -5,6 +5,7 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import com.feryaeljustice.docmask.R
 
 object BiometricHelper {
 
@@ -18,11 +19,14 @@ object BiometricHelper {
 
     fun showBiometricPrompt(
         activity: FragmentActivity,
-        title: String = "Desbloquear DocMask",
-        subtitle: String = "Confirma tu identidad para acceder a tus documentos",
+        title: String? = null,
+        subtitle: String? = null,
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
+        val promptTitle = title ?: activity.getString(R.string.lock_prompt_title)
+        val promptSubtitle = subtitle ?: activity.getString(R.string.lock_prompt_subtitle)
+
         val executor = ContextCompat.getMainExecutor(activity)
         val prompt = BiometricPrompt(
             activity,
@@ -45,8 +49,8 @@ object BiometricHelper {
         )
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle(title)
-            .setSubtitle(subtitle)
+            .setTitle(promptTitle)
+            .setSubtitle(promptSubtitle)
             .setAllowedAuthenticators(
                 BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
             )

@@ -38,7 +38,7 @@ val coreModule = module {
 
 val dataModule = module {
     single<DocumentProcessorRepository> { DocumentProcessorRepositoryImpl(get(), get()) }
-    single<TemplateRepository> { TemplateRepositoryImpl() }
+    single<TemplateRepository> { TemplateRepositoryImpl(androidContext()) }
     single<BillingRepository> { BillingRepositoryImpl(androidContext()) }
     single<UserPreferencesRepository> { UserPreferencesRepositoryImpl(androidContext()) }
     single<DocumentQuotaRepository> { DocumentQuotaRepositoryImpl(androidContext()) }
